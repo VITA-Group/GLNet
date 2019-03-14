@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # vim swp files
 *.swp
 # caffe/pytorch model files
@@ -17,6 +18,8 @@
 tests/resources/temp/*
 !tests/resources/temp/.gitkeep
 
+=======
+>>>>>>> 14083accad684d48ce12d8dbc8f1ebe767139f28
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -64,6 +67,10 @@ nosetests.xml
 coverage.xml
 *.cover
 .hypothesis/
+<<<<<<< HEAD
+=======
+.pytest_cache/
+>>>>>>> 14083accad684d48ce12d8dbc8f1ebe767139f28
 
 # Translations
 *.mo
@@ -71,9 +78,14 @@ coverage.xml
 
 # Django stuff:
 *.log
+<<<<<<< HEAD
 .static_storage/
 .media/
 local_settings.py
+=======
+local_settings.py
+db.sqlite3
+>>>>>>> 14083accad684d48ce12d8dbc8f1ebe767139f28
 
 # Flask stuff:
 instance/
