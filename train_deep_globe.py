@@ -6,6 +6,7 @@ from __future__ import absolute_import, division, print_function
 import os
 import cv2
 import numpy as np
+import scipy
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -13,17 +14,17 @@ from torch.autograd import Variable
 from torchvision import transforms
 from tqdm import tqdm
 from dataset.deep_globe import DeepGlobe, classToRGB, is_image_file
-from models.fpn_global_local_fmreg_ensemble_dynamic_size import fpn
-from models.crf import dense_crf
+# from models.fpn_global_local_fmreg_ensemble_dynamic_size import fpn
+from models.fpn_global_local_fmreg_ensemble import fpn
 from utils.loss import CrossEntropyLoss2d, SoftCrossEntropyLoss2d, FocalLoss
 from utils.lovasz_losses import lovasz_softmax
 from utils.metrics import ConfusionMatrix
 from utils.lr_scheduler import LR_Scheduler
 from tensorboardX import SummaryWriter
-import PIL
+from PIL import Image
 import time
 
-n_class = 7
+n_class = 6
 
 # torch.cuda.synchronize()
 # torch.backends.cudnn.benchmark = True
@@ -31,22 +32,61 @@ torch.backends.cudnn.deterministic = True
 
 data_path = "/ssd1/chenwy/deep_globe/data/"
 
-model_path = "/home/chenwy/deep_globe/saved_models/"
+# model_path = "/home/chenwy/deep_globe/saved_models/"
+model_path = "/home/chenwy/deep_globe/FPN_based/github/saved_models/"
 if not os.path.isdir(model_path): os.mkdir(model_path)
 
-log_path = "/home/chenwy/deep_globe/runs/"
+# log_path = "/home/chenwy/deep_globe/runs/"
+log_path = "/home/chenwy/deep_globe/FPN_based/github/runs/"
 # log_path = "/home/jiangziyu/chenwy/deep_globe/runs/"
 if not os.path.isdir(log_path): os.mkdir(log_path)
 
+transformer = transforms.Compose([
+    transforms.ToTensor(),
+    # transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+    transforms.Normalize([.485, .456, .406], [.229, .224, .225])
+])
+
 def resize(images, shape, label=False):
-    ''' resize PIL images '''
+    '''
+    resize PIL images
+    shape: (w, h)
+    '''
     resized = list(images)
     for i in range(len(images)):
         if label:
-            resized[i] = transforms.functional.resize(images[i], shape, interpolation=PIL.Image.NEAREST)
+            resized[i] = images[i].resize(shape, Image.NEAREST)
         else:
-            resized[i] = transforms.functional.resize(images[i], shape)
+            resized[i] = images[i].resize(shape, Image.BILINEAR)
     return resized
+
+def _mask_transform(mask):
+    target = np.array(mask).astype('int32')
+    target -= 1 # make class 0 (should be ignored) as -1 (to be ignored in cross_entropy)
+    return target
+
+def masks_transform(masks, numpy=False):
+    '''
+    masks: list of PIL images
+    '''
+    targets = []
+    for m in masks:
+        targets.append(_mask_transform(m))
+    targets = np.array(targets)
+    if numpy:
+        return targets
+    else:
+        return torch.from_numpy(targets).long().cuda()
+
+def images_transform(images):
+    '''
+    images: list of PIL images
+    '''
+    inputs = []
+    for img in images:
+        inputs.append(transformer(img))
+    inputs = torch.stack(inputs, dim=0).cuda()
+    return inputs
 
 def prepare_images(images):
     # PIL b, "w, h," c => cuda variable b, c, h, w
@@ -102,21 +142,19 @@ def global2patch(images, n, step, size):
     for i in range(len(images)):
         for x in range(n):
             for y in range(n):
-                patches[i][x * n + y] = transforms.functional.crop(images[i], x * step, y * step, size[0], size[1])
+                patches[i][x * n + y] = images[i].crop((x * step, y * step, x * step + size[0], y * step + size[1]))
     return patches
 
-def patch2global(patches, n, step, size0, size1, batch_size, template):
+def patch2global(patches, n, step, size0, size1, batch_size):
     '''
-    predicted patches => predictions
+    merge softmax from predicted patches => whole complete predictions
     return: list of np.array
     '''
     predictions = [ np.zeros((n_class, size0[0], size0[1])) for i in range(batch_size) ]
     for i in range(batch_size):
         for j in range(n):
             for k in range(n):
-                # print(predictions[i].shape, predictions[i][:, j * step: j * step + size1[0], k * step: k * step + size1[1]].shape, patches[i][j * n + k].shape)
                 predictions[i][:, j * step: j * step + size1[0], k * step: k * step + size1[1]] += patches[i][j * n + k]
-        # predictions[i] /= template
     return predictions
 
 def template_patch2global(size0, size1, n, step):
@@ -134,7 +172,7 @@ def template_patch2global(size0, size1, n, step):
             y += step
         x += step
         y = 0
-    return template, Variable(torch.Tensor(template).expand(1, 1, -1, -1)).cuda(), coordinates
+    return Variable(torch.Tensor(template).expand(1, 1, -1, -1)).cuda(), coordinates
 
 def one_hot_gaussian_blur(index, classes):
     '''
@@ -160,8 +198,8 @@ def collate_test(batch):
     id = [ b['id'] for b in batch ]
     return {'image': image, 'id': id}
 
-
-task_name = "fpn_global.508_9.30.2018.lr2e5"
+task_name = 'test'
+# task_name = "fpn_global.508_9.30.2018.lr2e5"
 # task_name = "fpn_global2local.508.deep.cat.1x_ensemble_fmreg.p3_10.14.2018.lr2e5"
 # task_name = "fpn_local2global.508_deep.cat_ensemble.p3_10.31.2018.lr2e5.local1x"
 
@@ -176,10 +214,10 @@ print("mode:", mode, "evaluation:", evaluation, "test:", test)
 ###################################
 print("preparing datasets and dataloaders......")
 batch_size = 6
-ids_train = [image_name for image_name in os.listdir(os.path.join(data_path, "train", "Sat")) if is_image_file(image_name)]
+ids_train = [image_name for image_name in os.listdir(os.path.join(data_path, "train", "Sat")) if is_image_file(image_name)][:6]
 # ids_train = [image_name for image_name in os.listdir(os.path.join(data_path, "train_test", "Sat")) if is_image_file(image_name)]
-ids_val = [image_name for image_name in os.listdir(os.path.join(data_path, "crossvali", "Sat")) if is_image_file(image_name)]
-ids_test = [image_name for image_name in os.listdir(os.path.join(data_path, "offical_crossvali", "Sat")) if is_image_file(image_name)]
+ids_val = [image_name for image_name in os.listdir(os.path.join(data_path, "crossvali", "Sat")) if is_image_file(image_name)][:6]
+ids_test = [image_name for image_name in os.listdir(os.path.join(data_path, "offical_crossvali", "Sat")) if is_image_file(image_name)][:6]
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 dataset_train = DeepGlobe(os.path.join(data_path, "train_test"), ids_train, label=True, transform=True)
@@ -189,18 +227,18 @@ dataloader_val = torch.utils.data.DataLoader(dataset=dataset_val, batch_size=bat
 dataset_test = DeepGlobe(os.path.join(data_path, "offical_crossvali"), ids_test, label=False)
 dataloader_test = torch.utils.data.DataLoader(dataset=dataset_test, batch_size=batch_size, num_workers=1, collate_fn=collate_test, shuffle=False, pin_memory=True)
 
-###################################
+##### sizes are (w, h) ##############################
 size0 = (2448, 2448)
 # make sure margin / 32 is over 1.5 AND size1 is divisible by 4
 size1 = (508, 508) # resized global image
 # size_p/n/batch: 208/15/50, 308/11/22, 508/6/8, 804/4/4
-size_p = (208, 208)
+size_p = (508, 508)
 ratio = float(size_p[0]) / size0[0]
 n = 6
 step = (size0[0] - size_p[0]) // (n - 1)
 sub_batch_size = 8
 
-template_np, template, coordinates = template_patch2global(size0, size_p, n, step)
+template, coordinates = template_patch2global(size0, size_p, n, step)
 ###################################
 print("creating models......")
 
@@ -296,7 +334,7 @@ scheduler = LR_Scheduler('poly', learning_rate, num_epochs, len(dataloader_train
 ##################################
 
 # criterion = FocalLoss(device, gamma=6)#, one_hot=False)
-criterion = nn.CrossEntropyLoss(ignore_index=0)
+criterion = nn.CrossEntropyLoss(ignore_index=-1)
 mse = nn.MSELoss()
 # criterion.to(device)
 
@@ -325,9 +363,12 @@ for epoch in range(start_epoch, num_epochs):
         scheduler(optimizer, i_batch, epoch, best_pred)
 
         images, labels = sample_batched['image'], sample_batched['label'] # PIL images
-        images_var, labels_var = resize(images, size1), resize(labels, (size1[0] // 4, size1[1] // 4), label=True) # list of resized PIL images
-        images_var = prepare_images(images_var)
-        labels_var = prepare_images(labels_var)
+        labels_npy = masks_transform(labels, numpy=True)
+
+        images_glb = resize(images, size1) # list of resized PIL images
+        images_glb = images_transform(images_glb)
+        labels_glb = resize(labels, size1, label=True)
+        labels_glb = masks_transform(labels_glb)
 
         if mode == 2 or mode == 3:
             patches, label_patches = global2patch(images, n, step, size_p), global2patch(labels, n, step, size_p)
@@ -337,9 +378,9 @@ for epoch in range(start_epoch, num_epochs):
 
         if mode == 1:
             # training with only (resized) global image #########################################
-            outputs_global, output_patches = model.forward(images_var, None, None, None)
-            loss = criterion(outputs_global, labels_var)
-            # loss = lovasz_softmax(outputs_global, labels_var)
+            outputs_global, _ = model.forward(images_glb, None, None, None)
+            loss = criterion(outputs_global, labels_glb)
+            # loss = lovasz_softmax(outputs_global, labels_glb)
             loss.backward()
             optimizer.step()
             optimizer.zero_grad()
@@ -350,17 +391,16 @@ for epoch in range(start_epoch, num_epochs):
             for i in range(len(images)):
                 j = 0
                 while j < n * n:
-                    patches_var = prepare_images(patches[i][j : j+sub_batch_size]) # b, c, h, w
-                    label_patches_var = resize(label_patches[i][j : j+sub_batch_size], (size_p[0] // 4, size_p[1] // 4)) # b, c, h, w
-                    label_patches_var = prepare_images(label_patches_var)
+                    patches_var = images_transform(patches[i][j : j+sub_batch_size]) # b, c, h, w
+                    label_patches_var = masks_transform(label_patches[i][j : j+sub_batch_size])
 
-                    output_ensembles, output_global, output_patches, fmreg_l2 = model.forward(images_var[i:i+1], patches_var, coordinates[j : j+sub_batch_size], ratio, mode=mode, n_patch=n*n) # include cordinates
+                    output_ensembles, output_global, output_patches, fmreg_l2 = model.forward(images_glb[i:i+1], patches_var, coordinates[j : j+sub_batch_size], ratio, mode=mode, n_patch=n*n) # include cordinates
                     loss = criterion(output_patches, label_patches_var) + criterion(output_ensembles, label_patches_var) + (lamb_fmreg * decay_fmreg ** epoch) * fmreg_l2
                     loss.backward()
                     
                     # patch predictions
-                    predicted_patches[i][j:j+output_patches.size()[0]] = F.upsample(output_patches, size=(size_p[0], size_p[1]), mode='nearest').data.cpu().numpy()
-                    predicted_ensembles[i][j:j+output_ensembles.size()[0]] = F.upsample(output_ensembles, size=(size_p[0], size_p[1]), mode='nearest').data.cpu().numpy()
+                    predicted_patches[i][j:j+output_patches.size()[0]] = output_patches.data.cpu().numpy()
+                    predicted_ensembles[i][j:j+output_ensembles.size()[0]] = output_ensembles.data.cpu().numpy()
                     j += sub_batch_size
                 outputs_global[i] = output_global
             outputs_global = torch.cat(outputs_global, dim=0)
@@ -376,24 +416,24 @@ for epoch in range(start_epoch, num_epochs):
             for i in range(len(images)):
                 j = 0
                 while j < n * n:
-                    patches_var = prepare_images(patches[i][j : j+sub_batch_size]) # b, c, h, w
-                    fm_patches, output_patches = model.module.collect_local_fm(images_var[i:i+1], patches_var, ratio, coordinates, [j, j+sub_batch_size], len(images), global_model=global_fixed, template=template, n_patch_all=n*n) # include cordinates
-                    predicted_patches[i][j:j+output_patches.size()[0]] = F.upsample(output_patches, size=(size_p[0], size_p[1]), mode='nearest').data.cpu().numpy()
+                    patches_var = images_transform(patches[i][j : j+sub_batch_size]) # b, c, h, w
+                    fm_patches, output_patches = model.module.collect_local_fm(images_glb[i:i+1], patches_var, ratio, coordinates, [j, j+sub_batch_size], len(images), global_model=global_fixed, template=template, n_patch_all=n*n) # include cordinates
+                    predicted_patches[i][j:j+output_patches.size()[0]] = output_patches.data.cpu().numpy()
                     j += sub_batch_size
             # train on global image
-            outputs_global, fm_global = model.forward(images_var, None, coordinates, ratio, mode=mode, global_model=None, n_patch=n*n) # include cordinates
-            loss = criterion(outputs_global, labels_var)
+            outputs_global, fm_global = model.forward(images_glb, None, coordinates, ratio, mode=mode, global_model=None, n_patch=n*n) # include cordinates
+            loss = criterion(outputs_global, labels_glb)
             loss.backward(retain_graph=True)
             # fmreg loss
             # generate ensembles & calc loss
             for i in range(len(images)):
                 j = 0
                 while j < n * n:
-                    label_patches_var = prepare_images(resize(label_patches[i][j : j+sub_batch_size], (size_p[0] // 4, size_p[1] // 4))) # b, c, h, w
+                    label_patches_var = masks_transform(label_patches[i][j : j+sub_batch_size]) # b, c, h, w
                     fl = fm_patches[i][j : j+sub_batch_size].cuda()
                     fg = model.module._crop_global(fm_global[i:i+1], coordinates[j:j+sub_batch_size], ratio)[0]
-                    fg = F.upsample(fg, size=fl.size()[2:], mode='bilinear')
-                    output_ensembles = model.module.ensemble(fl, fg) # include cordinates
+                    fg = F.interpolate(fg, size=fl.size()[2:], mode='bilinear', align_corners=True)
+                    output_ensembles = F.interpolate(model.module.ensemble(fl, fg), size_p, **model.module._up_kwargs)
                     loss = criterion(output_ensembles, label_patches_var)# + 0.15 * mse(fl, fg)
                     if i == len(images) - 1 and j + sub_batch_size >= n * n:
                         loss.backward()
@@ -401,28 +441,27 @@ for epoch in range(start_epoch, num_epochs):
                         loss.backward(retain_graph=True)
                     
                     # ensemble predictions
-                    predicted_ensembles[i][j:j+output_ensembles.size()[0]] = F.upsample(output_ensembles, size=(size_p[0], size_p[1]), mode='nearest').data.cpu().numpy()
+                    predicted_ensembles[i][j:j+output_ensembles.size()[0]] = output_ensembles.data.cpu().numpy()
                     j += sub_batch_size
             optimizer.step()
             optimizer.zero_grad()
+        
+        # global predictions ###########################
+        predictions_global = F.interpolate(outputs_global.cpu(), size0).argmax(1).detach().numpy()
+        # predictions_global = restore_shape(outputs_global.argmax(1), images) # b, h, w
+        metrics_global.update(labels_npy, predictions_global)
 
         if mode == 2 or mode == 3:
             # patch predictions ###########################
-            scores_local = np.array(patch2global(predicted_patches, n, step, size0, size_p, len(images), template_np)) # merge softmax scores from patches (overlaps)
+            scores_local = np.array(patch2global(predicted_patches, n, step, size0, size_p, len(images))) # merge softmax scores from patches (overlaps)
             predictions_local = scores_local.argmax(1) # b, h, w
-            metrics_local.update([ np.array(m).astype(np.int64) for m in labels ], predictions_local)
+            metrics_local.update(labels_npy, predictions_local)
             ###################################################
-        
-        # global predictions ###########################
-        outputs_global = outputs_global.data.cpu().numpy()
-        predictions_global = restore_shape(outputs_global.argmax(1), images) # b, h, w
-        metrics_global.update([ np.array(m).astype(np.int64) for m in labels ], predictions_global)
-
-        if mode == 2 or mode == 3:
             # combined/ensemble predictions ###########################
-            scores = np.array(patch2global(predicted_ensembles, n, step, size0, size_p, len(images), template_np)) # merge softmax scores from patches (overlaps)
+            scores = np.array(patch2global(predicted_ensembles, n, step, size0, size_p, len(images))) # merge softmax scores from patches (overlaps)
             predictions = scores.argmax(1) # b, h, w
-            metrics.update([ np.array(m).astype(np.int64) for m in labels ], predictions)
+            metrics.update(labels_npy, predictions)
+
     score_train = metrics.get_scores()
     score_train_local = metrics_local.get_scores()
     score_train_global = metrics_global.get_scores()
@@ -453,9 +492,10 @@ for epoch in range(start_epoch, num_epochs):
                 else: images = sample_batched['image']
                 if not test:
                     labels = sample_batched['label'] # PIL images
+                    labels_npy = masks_transform(labels, numpy=True)
 
                 images_global = resize(images, size1)
-                outputs_global = np.zeros((len(images), n_class, size1[0] // 4, size1[1] // 4))
+                outputs_global = np.zeros((len(images), n_class, size1[0], size1[1]))
                 if mode == 2 or mode == 3:
                     images_local = [ image.copy() for image in images ]
                     scores_local = np.zeros((len(images), n_class, size0[0], size0[1]))
@@ -478,7 +518,7 @@ for epoch in range(start_epoch, num_epochs):
                                     images_local[b] = transforms.functional.rotate(images_local[b], 90)
 
                         # prepare global images onto cuda
-                        images_var = prepare_images(images_global) # b, c, h, w
+                        images_var = images_transform(images_global) # b, c, h, w
 
                         if mode == 2 or mode == 3:
                             patches = global2patch(images_local, n, step, size_p)
@@ -502,8 +542,8 @@ for epoch in range(start_epoch, num_epochs):
                                     output_ensembles, output_global, output_patches, _ = model.forward(images_var[i:i+1], patches_var, coordinates[j : j+sub_batch_size], ratio, mode=mode, n_patch=n*n) # include cordinates
                                     
                                     # patch predictions
-                                    predicted_patches[i][j:j+output_patches.size()[0]] += F.upsample(output_patches, size=(size_p[0], size_p[1]), mode='nearest').data.cpu().numpy()
-                                    predicted_ensembles[i][j:j+output_ensembles.size()[0]] += F.upsample(output_ensembles, size=(size_p[0], size_p[1]), mode='nearest').data.cpu().numpy()
+                                    predicted_patches[i][j:j+output_patches.size()[0]] += output_patches.data.cpu().numpy()
+                                    predicted_ensembles[i][j:j+output_ensembles.size()[0]] += output_ensembles.data.cpu().numpy()
                                     j += patches_var.size()[0]
                                 if flip:
                                     outputs_global[i] += np.flip(np.rot90(output_global[0].data.cpu().numpy(), k=angle, axes=(2, 1)), axis=2)
@@ -511,11 +551,11 @@ for epoch in range(start_epoch, num_epochs):
                                     outputs_global[i] += np.rot90(output_global[0].data.cpu().numpy(), k=angle, axes=(2, 1))
 
                             if flip:
-                                scores_local += np.flip(np.rot90(np.array(patch2global(predicted_patches, n, step, size0, size_p, len(images), template_np)), k=angle, axes=(3, 2)), axis=3) # merge softmax scores from patches (overlaps)
-                                scores += np.flip(np.rot90(np.array(patch2global(predicted_ensembles, n, step, size0, size_p, len(images), template_np)), k=angle, axes=(3, 2)), axis=3) # merge softmax scores from patches (overlaps)
+                                scores_local += np.flip(np.rot90(np.array(patch2global(predicted_patches, n, step, size0, size_p, len(images))), k=angle, axes=(3, 2)), axis=3) # merge softmax scores from patches (overlaps)
+                                scores += np.flip(np.rot90(np.array(patch2global(predicted_ensembles, n, step, size0, size_p, len(images))), k=angle, axes=(3, 2)), axis=3) # merge softmax scores from patches (overlaps)
                             else:
-                                scores_local += np.rot90(np.array(patch2global(predicted_patches, n, step, size0, size_p, len(images), template_np)), k=angle, axes=(3, 2)) # merge softmax scores from patches (overlaps)
-                                scores += np.rot90(np.array(patch2global(predicted_ensembles, n, step, size0, size_p, len(images), template_np)), k=angle, axes=(3, 2)) # merge softmax scores from patches (overlaps)
+                                scores_local += np.rot90(np.array(patch2global(predicted_patches, n, step, size0, size_p, len(images))), k=angle, axes=(3, 2)) # merge softmax scores from patches (overlaps)
+                                scores += np.rot90(np.array(patch2global(predicted_ensembles, n, step, size0, size_p, len(images))), k=angle, axes=(3, 2)) # merge softmax scores from patches (overlaps)
                             ###############################################################
 
                         if mode == 3:
@@ -527,7 +567,7 @@ for epoch in range(start_epoch, num_epochs):
                                 while j < n * n:
                                     patches_var = prepare_images(patches[i][j : j+sub_batch_size]) # b, c, h, w
                                     fm_patches, output_patches = model.module.collect_local_fm(images_var[i:i+1], patches_var, ratio, coordinates, [j, j+sub_batch_size], len(images), global_model=global_fixed, template=template, n_patch_all=n*n) # include cordinates
-                                    predicted_patches[i][j:j+output_patches.size()[0]] += F.upsample(output_patches, size=(size_p[0], size_p[1]), mode='nearest').data.cpu().numpy()
+                                    predicted_patches[i][j:j+output_patches.size()[0]] += output_patches.data.cpu().numpy()
                                     j += sub_batch_size
                             # go through global image
                             tmp, fm_global = model.forward(images_var, None, coordinates, ratio, mode=mode, global_model=None, n_patch=n*n) # include cordinates
@@ -541,40 +581,40 @@ for epoch in range(start_epoch, num_epochs):
                                 while j < n * n:
                                     fl = fm_patches[i][j : j+sub_batch_size].cuda()
                                     fg = model.module._crop_global(fm_global[i:i+1], coordinates[j:j+sub_batch_size], ratio)[0]
-                                    fg = F.upsample(fg, size=fl.size()[2:], mode='bilinear')
+                                    fg = F.interpolate(fg, size=fl.size()[2:], mode='bilinear')
                                     output_ensembles = model.module.ensemble(fl, fg) # include cordinates
+                                    output_ensembles = F.interpolate(model.module.ensemble(fl, fg), size_p, **model.module._up_kwargs)
                                     
                                     # ensemble predictions
-                                    predicted_ensembles[i][j:j+output_ensembles.size()[0]] += F.upsample(output_ensembles, size=(size_p[0], size_p[1]), mode='nearest').data.cpu().numpy()
+                                    predicted_ensembles[i][j:j+output_ensembles.size()[0]] += output_ensembles.data.cpu().numpy()
                                     j += sub_batch_size
 
                             if flip:
-                                scores_local += np.flip(np.rot90(np.array(patch2global(predicted_patches, n, step, size0, size_p, len(images), template_np)), k=angle, axes=(3, 2)), axis=3) # merge softmax scores from patches (overlaps)
-                                scores += np.flip(np.rot90(np.array(patch2global(predicted_ensembles, n, step, size0, size_p, len(images), template_np)), k=angle, axes=(3, 2)), axis=3) # merge softmax scores from patches (overlaps)
+                                scores_local += np.flip(np.rot90(np.array(patch2global(predicted_patches, n, step, size0, size_p, len(images))), k=angle, axes=(3, 2)), axis=3) # merge softmax scores from patches (overlaps)
+                                scores += np.flip(np.rot90(np.array(patch2global(predicted_ensembles, n, step, size0, size_p, len(images))), k=angle, axes=(3, 2)), axis=3) # merge softmax scores from patches (overlaps)
                             else:
-                                scores_local += np.rot90(np.array(patch2global(predicted_patches, n, step, size0, size_p, len(images), template_np)), k=angle, axes=(3, 2)) # merge softmax scores from patches (overlaps)
-                                scores += np.rot90(np.array(patch2global(predicted_ensembles, n, step, size0, size_p, len(images), template_np)), k=angle, axes=(3, 2)) # merge softmax scores from patches (overlaps)
+                                scores_local += np.rot90(np.array(patch2global(predicted_patches, n, step, size0, size_p, len(images))), k=angle, axes=(3, 2)) # merge softmax scores from patches (overlaps)
+                                scores += np.rot90(np.array(patch2global(predicted_ensembles, n, step, size0, size_p, len(images))), k=angle, axes=(3, 2)) # merge softmax scores from patches (overlaps)
                             ###################################################
+                
+                # global predictions ###########################
+                predictions_global = F.interpolate(torch.Tensor(outputs_global), size0, mode='nearest').argmax(1).detach().numpy()
+                if not test:
+                    metrics_global.update(labels_npy, predictions_global)
         
                 if mode == 2 or mode == 3:
                     # patch predictions ###########################
                     predictions_local = scores_local.argmax(1) # b, h, w
                     if not test:
-                        metrics_local.update([ np.array(m).astype(np.int64) for m in labels ], predictions_local)
+                        metrics_local.update(labels_npy, predictions_local)
                     ###################################################
-                
-                # global predictions ###########################
-                predictions_global = restore_shape(outputs_global.argmax(1), images, pad=pad) # b, h, w
-                if not test:
-                    metrics_global.update([ np.array(m).astype(np.int64) for m in labels ], predictions_global)
-
-                if mode == 2 or mode == 3:
                     # combined/ensemble predictions ###########################
                     predictions = scores.argmax(1) # b, h, w
                     if not test:
-                        metrics.update([ np.array(m).astype(np.int64) for m in labels ], predictions)
+                        metrics.update(labels_npy, predictions)
 
                 if test:
+                    if not os.path.isdir("./prediction/"): os.mkdir("./prediction/")
                     for i in range(len(images)):
                         if mode == 1:
                             transforms.functional.to_pil_image(classToRGB(predictions_global[i]) * 255.).save("./prediction/" + sample_batched['id'][i] + "_mask.png")
@@ -609,9 +649,6 @@ for epoch in range(start_epoch, num_epochs):
                 else:
                     if np.mean(np.nan_to_num(score_val["iou"][1:])) > best_pred: best_pred = np.mean(np.nan_to_num(score_val["iou"][1:]))
                 log = ""
-                # log = log + 'epoch [{}/{}] IoU: train = {:.4f}, val = {:.4f}'.format(epoch+1, num_epochs, score_train["iou_mean"], score_val["iou_mean"]) + "\n"
-                # log = log + 'epoch [{}/{}] Local  -- IoU: train = {:.4f}, val = {:.4f}'.format(epoch+1, num_epochs, score_train_local["iou_mean"], score_val_local["iou_mean"]) + "\n"
-                # log = log + 'epoch [{}/{}] Global -- IoU: train = {:.4f}, val = {:.4f}'.format(epoch+1, num_epochs, score_train_global["iou_mean"], score_val_global["iou_mean"]) + "\n"
                 log = log + 'epoch [{}/{}] IoU: train = {:.4f}, val = {:.4f}'.format(epoch+1, num_epochs, np.mean(np.nan_to_num(score_train["iou"][1:])), np.mean(np.nan_to_num(score_val["iou"][1:]))) + "\n"
                 log = log + 'epoch [{}/{}] Local  -- IoU: train = {:.4f}, val = {:.4f}'.format(epoch+1, num_epochs, np.mean(np.nan_to_num(score_train_local["iou"][1:])), np.mean(np.nan_to_num(score_val_local["iou"][1:]))) + "\n"
                 log = log + 'epoch [{}/{}] Global -- IoU: train = {:.4f}, val = {:.4f}'.format(epoch+1, num_epochs, np.mean(np.nan_to_num(score_train_global["iou"][1:])), np.mean(np.nan_to_num(score_val_global["iou"][1:]))) + "\n"
@@ -627,18 +664,9 @@ for epoch in range(start_epoch, num_epochs):
 
                 f_log.write(log)
                 f_log.flush()
-                # print('epoch [{}/{}] IoU: train = {:.4f}, val = {:.4f}'.format(epoch+1, num_epochs, score_train["iou_mean"], score_val["iou_mean"])) 
-                # print('epoch [{}/{}] Local  -- IoU: train = {:.4f}, val = {:.4f}'.format(epoch+1, num_epochs, score_train_local["iou_mean"], score_val_local["iou_mean"])) 
-                # print('epoch [{}/{}] Global -- IoU: train = {:.4f}, val = {:.4f}'.format(epoch+1, num_epochs, score_train_global["iou_mean"], score_val_global["iou_mean"])) 
-                # print("train:", score_train["iou"])
-                # print("val:", score_val["iou"])
-                # print("Local train:", score_train_local["iou"])
-                # print("Local val:", score_val_local["iou"])
-                # print("Global train:", score_train_global["iou"])
-                # print("Global val:", score_val_global["iou"])
                 if mode == 1:
                     writer.add_scalars('IoU', {'train iou': np.mean(np.nan_to_num(score_train_global["iou"][1:])), 'validation iou': np.mean(np.nan_to_num(score_val_global["iou"][1:]))}, epoch)
                 else:
                     writer.add_scalars('IoU', {'train iou': np.mean(np.nan_to_num(score_train["iou"][1:])), 'validation iou': np.mean(np.nan_to_num(score_val["iou"][1:]))}, epoch)
 
-f_log.close()
+if not evaluation: f_log.close()

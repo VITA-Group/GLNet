@@ -6,7 +6,6 @@ import torch
 from torch.autograd import Variable
 import numpy as np
 
-
 class fpn_module_global(nn.Module):
     def __init__(self, numClass):
         super(fpn_module_global, self).__init__()
@@ -220,6 +219,7 @@ class fpn_module_local(nn.Module):
 class fpn(nn.Module):
     def __init__(self, numClass):
         super(fpn, self).__init__()
+        self._up_kwargs = {'mode': 'bilinear', 'align_corners': True}
         # Res net
         self.resnet_global = resnet50(True)
         self.resnet_local = resnet50(True)
@@ -353,6 +353,7 @@ class fpn(nn.Module):
             if self.patch_n == 0:
                 self.c2_g, self.c3_g, self.c4_g, self.c5_g = global_model.module.resnet_global.forward(image_global)
                 self.output_g, self.ps0_g, self.ps1_g, self.ps2_g, self.ps3_g = global_model.module.fpn_global.forward(self.c2_g, self.c3_g, self.c4_g, self.c5_g)
+                self.output_g = F.upsample(self.output_g, image_global.size()[2:], **self._up_kwargs)
             self.patch_n += patches.size()[0]
             self.patch_n %= n_patch_all
 
@@ -361,6 +362,7 @@ class fpn(nn.Module):
             c2, c3, c4, c5 = self.resnet_local.forward(patches)
             # global's 1x 2x patch cat; no attention
             output, ps0, ps1, ps2, ps3 = self.fpn_local.forward(c2, c3, c4, c5, c2_ext=self._crop_global(self.c2_g, top_lefts[oped[0]:oped[1]], ratio), c3_ext=self._crop_global(self.c3_g, top_lefts[oped[0]:oped[1]], ratio), c4_ext=self._crop_global(self.c4_g, top_lefts[oped[0]:oped[1]], ratio), c5_ext=self._crop_global(self.c5_g, top_lefts[oped[0]:oped[1]], ratio), ps0_ext=[ self._crop_global(f, top_lefts[oped[0]:oped[1]], ratio) for f in self.ps0_g ], ps1_ext=[ self._crop_global(f, top_lefts[oped[0]:oped[1]], ratio) for f in self.ps1_g ], ps2_ext=[ self._crop_global(f, top_lefts[oped[0]:oped[1]], ratio) for f in self.ps2_g ])
+            output = F.upsample(output, patches.size()[2:], **self._up_kwargs)
 
             self.c2_b = self._merge_local(c2, self.c2_b, top_lefts, oped, ratio, template)
             self.c3_b = self._merge_local(c3, self.c3_b, top_lefts, oped, ratio, template)
@@ -426,29 +428,39 @@ class fpn(nn.Module):
     def forward(self, image_global, patches, top_lefts, ratio, mode=1, global_model=None, n_patch=None):
         if mode == 1:
             # train global model
+            imsize = image_global.size()[2:]
             c2_g, c3_g, c4_g, c5_g = self.resnet_global.forward(image_global)
             output_g, ps0_g, ps1_g, ps2_g, ps3_g = self.fpn_global.forward(c2_g, c3_g, c4_g, c5_g)
+            output_g = F.upsample(output_g, imsize, **self._up_kwargs)
             return output_g, None
         elif mode == 2:
             # train global2local model
             with torch.no_grad():
                 if self.patch_n == 0:
+                    imsize_glb = image_global.size()[2:]
+                    # calculate global images only if patches belong to a new set of global images (when self.patch_n % n_patch == 0)
                     self.c2_g, self.c3_g, self.c4_g, self.c5_g = self.resnet_global.forward(image_global)
                     self.output_g, self.ps0_g, self.ps1_g, self.ps2_g, self.ps3_g = self.fpn_global.forward(self.c2_g, self.c3_g, self.c4_g, self.c5_g)
+                    self.output_g = F.upsample(self.output_g, imsize_glb, **self._up_kwargs)
                 self.patch_n += patches.size()[0]
                 self.patch_n %= n_patch
 
             # train local model #######################################
+            imsize = patches.size()[2:]
             c2_l, c3_l, c4_l, c5_l = self.resnet_local.forward(patches)
             # global's 1x patch cat
             output_l, ps0_l, ps1_l, ps2_l, ps3_l = self.fpn_local.forward(c2_l, c3_l, c4_l, c5_l, c2_ext=self._crop_global(self.c2_g, top_lefts, ratio), c3_ext=self._crop_global(self.c3_g, top_lefts, ratio), c4_ext=self._crop_global(self.c4_g, top_lefts, ratio), c5_ext=self._crop_global(self.c5_g, top_lefts, ratio), ps0_ext=[ self._crop_global(f, top_lefts, ratio) for f in self.ps0_g ], ps1_ext=[ self._crop_global(f, top_lefts, ratio) for f in self.ps1_g ], ps2_ext=[ self._crop_global(f, top_lefts, ratio) for f in self.ps2_g ])
+            output_l = F.upsample(output_l, imsize, **self._up_kwargs)
             ps3_g2l = self._crop_global(self.ps3_g, top_lefts, ratio)[0]
             output = self.ensemble(ps3_l, ps3_g2l)
+            output = F.upsample(output, imsize, **self._up_kwargs)
             return output, self.output_g, output_l, self.mse(ps3_l, ps3_g2l)
         else:
             # train local2global model
+            imsize = image_global.size()[2:]
             c2_g, c3_g, c4_g, c5_g = self.resnet_global.forward(image_global)
             # local patch cat into global
             output_g, ps0_g, ps1_g, ps2_g, ps3_g = self.fpn_global.forward(c2_g, c3_g, c4_g, c5_g, c2_ext=self.c2_l, c3_ext=self.c3_l, c4_ext=self.c4_l, c5_ext=self.c5_l, ps0_ext=self.ps0_l, ps1_ext=self.ps1_l, ps2_ext=self.ps2_l)
+            output_g = F.upsample(output_g, imsize, **self._up_kwargs)
             self.clear_cache()
             return output_g, ps3_g
