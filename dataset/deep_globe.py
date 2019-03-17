@@ -94,7 +94,7 @@ def label_bluring(inputs):
 class DeepGlobe(data.Dataset):
     """input and label image dataset"""
 
-    def __init__(self, root, ids, label=False, transform=False, in_ram=False):
+    def __init__(self, root, ids, label=False, transform=False):
         super(DeepGlobe, self).__init__()
         """
         Args:
@@ -110,33 +110,17 @@ class DeepGlobe(data.Dataset):
         
         self.color_jitter = transforms.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.04)
         self.resizer = transforms.Resize((2448, 2448))
-        self.in_ram = in_ram
-        if self.in_ram:
-            self.images = {}
-            self.labels = {}
-            for id in tqdm(self.ids):
-                image = Image.open(os.path.join(self.root, "Sat/" + id)) # w, h
-                label = scipy.io.loadmat(join(self.root, 'Notification/' + id.replace('_sat.jpg', '_mask.mat')))["label"]
-                label = Image.fromarray(label)
-                self.images[id] = image
-                self.labels[id] = label
 
     def __getitem__(self, index):
         sample = {}
         sample['id'] = self.ids[index][:-8]
-        if self.in_ram:
-            image = self.images[self.ids[index]]
-        else:
-            image = Image.open(os.path.join(self.root, "Sat/" + self.ids[index])) # w, h
+        image = Image.open(os.path.join(self.root, "Sat/" + self.ids[index])) # w, h
         sample['image'] = image
         # sample['image'] = transforms.functional.adjust_contrast(image, 1.4)
         if self.label:
-            if self.in_ram:
-                label = self.labels[self.ids[index]]
-            else:
-                label = scipy.io.loadmat(join(self.root, 'Notification/' + self.ids[index].replace('_sat.jpg', '_mask.mat')))["label"]
-                label = Image.fromarray(label)
-            # label = Image.open(join(self.root, 'Notification/' + self.ids[index].replace('_sat.jpg', '_mask.png')))
+            # label = scipy.io.loadmat(join(self.root, 'Notification/' + self.ids[index].replace('_sat.jpg', '_mask.mat')))["label"]
+            # label = Image.fromarray(label)
+            label = Image.open(join(self.root, 'Label/' + self.ids[index].replace('_sat.jpg', '_mask.png')))
             sample['label'] = label
         if self.transform and self.label:
             image, label = self._transform(image, label)
@@ -181,7 +165,3 @@ class DeepGlobe(data.Dataset):
 
     def __len__(self):
         return len(self.ids)
-
-# dataset_train = MultiDataSet("/home/ckx9411sx/deepGlobe/land-train")
-# np.save('/home/ckx9411sx/deepGlobe/temp/train_data_mc.npy', dataset_train)
-# print(dataset_train)
