@@ -12,7 +12,7 @@ class CrossEntropyLoss2d(nn.Module):
         return self.nll_loss(F.log_softmax(inputs, dim=1), targets)
 
 
-def one_hot(index, classes, device):
+def one_hot(index, classes):
     size = index.size()[:1] + (classes,) + index.size()[1:]
     view = index.size()[:1] + (1,) + index.size()[1:]
     # size = index.size()[:1] + (classes,)
@@ -28,12 +28,11 @@ def one_hot(index, classes, device):
 
 class FocalLoss(nn.Module):
 
-    def __init__(self, device, gamma=0, eps=1e-7, size_average=True, one_hot=True, ignore=None):
+    def __init__(self, gamma=0, eps=1e-7, size_average=True, one_hot=True, ignore=None):
         super(FocalLoss, self).__init__()
         self.gamma = gamma
         self.eps = eps
         self.size_average = size_average
-        self.device = device
         self.one_hot = one_hot
         self.ignore = ignore
 
@@ -50,7 +49,7 @@ class FocalLoss(nn.Module):
         #     target = target[valid]
         #     target = target - 1
 
-        if self.one_hot: target = one_hot(target, input.size(1), self.device)
+        if self.one_hot: target = one_hot(target, input.size(1))
         probs = F.softmax(input, dim=1)
         probs = (probs * target).sum(1)
         probs = probs.clamp(self.eps, 1. - self.eps)
