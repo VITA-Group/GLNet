@@ -50,10 +50,10 @@ print("mode:", mode, "evaluation:", evaluation, "test:", test)
 
 ###################################
 print("preparing datasets and dataloaders......")
-batch_size = 1
-ids_train = [image_name for image_name in os.listdir(os.path.join(data_path, "train", "Sat")) if is_image_file(image_name)][:2]
+batch_size = 6
+ids_train = [image_name for image_name in os.listdir(os.path.join(data_path, "train", "Sat")) if is_image_file(image_name)]
 # ids_train = [image_name for image_name in os.listdir(os.path.join(data_path, "train_test", "Sat")) if is_image_file(image_name)]
-ids_val = [image_name for image_name in os.listdir(os.path.join(data_path, "crossvali", "Sat")) if is_image_file(image_name)][:2]
+ids_val = [image_name for image_name in os.listdir(os.path.join(data_path, "crossvali", "Sat")) if is_image_file(image_name)]
 ids_test = [image_name for image_name in os.listdir(os.path.join(data_path, "offical_crossvali", "Sat")) if is_image_file(image_name)]
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -69,9 +69,9 @@ size0 = (2448, 2448)
 # make sure margin / 32 is over 1.5 AND size_g is divisible by 4
 # size_p/n/batch: 208/15/50, 308/11/22, 508/6/8, 804/4/4
 size_g = (508, 508) # resized global image
-size_p = (508, 508)
+size_p = (508, 508) # cropped local patch size
 n = 6
-sub_batch_size = 2
+sub_batch_size = 6 # batch size for train local patches
 ###################################
 print("creating models......")
 
