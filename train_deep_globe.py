@@ -35,15 +35,14 @@ log_path = "/home/chenwy/deep_globe/FPN_based/github/runs/"
 if not os.path.isdir(log_path): os.mkdir(log_path)
 
 
-task_name = "test"
-# task_name = "fpn_global.508_9.30.2018.lr2e5"
+task_name = "fpn_global.508_9.30.2018.lr2e5"
 # task_name = "fpn_global2local.804_deep.cat.1x_fmreg_ensemble.p3.0.15l2_up_3.19.2019.lr2e5"
 # task_name = "fpn_local2global.508_deep.cat.1x_fmreg_ensemble.p3_3.19.2019.lr2e5"
 
 print(task_name)
 ###################################
 
-mode = 2 # 1: train global; 2: train local from global; 3: train global from local
+mode = 1 # 1: train global; 2: train local from global; 3: train global from local
 evaluation = False
 test = evaluation and False
 print("mode:", mode, "evaluation:", evaluation, "test:", test)
