@@ -7,4 +7,8 @@ Wuyang Chen*, Ziyu Jiang*, Zhangyang Wang, Kexin Cui, and Xiaoning Qian
 In CVPR 2019 (Oral).
 
 ## Overview
-![Acc_vs_Mem](https://github.com/chenwydj/ultra_high_resolution_segmentation/blob/master/docs/images/deep_globe_acc_mem_ext.pdf)
+![Acc_vs_Mem](https://raw.githubusercontent.com/chenwydj/ultra_high_resolution_segmentation/master/docs/images/deep_globe_acc_mem_ext.jpg)
+*Inference memory v.s. mIoU on the [DeepGlobe dataset](https://arxiv.org/abs/1805.06561). Downsampling rates or normalized patch sizes are shown in scale annotations.*
+
+
+GLNet (red dots) integrates both global and local information in a compact way, contributing to a well-balanced trade-off between accuracy and memory usage.*
