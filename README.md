@@ -14,7 +14,7 @@ Segmentation of ultra-high resolution images is increasingly demanded in a wide 
 
 We propose collaborative **Global-Local Networks (GLNet)** to effectively preserve both global and local information in a highly memory-efficient manner.
 
-* **Memory-efficient**: <span style="color:red">training w. only one 1080Ti</span> and <span style="color:red">inference w. less than 2GB GPU memory</span>, for ultra-high resolution images of up to 30M pixels.
+* **Memory-efficient**: **training w. only one 1080Ti** and **inference w. less than 2GB GPU memory**, for ultra-high resolution images of up to 30M pixels.
 
 * **High-quality**: GLNet outperforms existing segmentation models on ultra-high resolution images.
 
