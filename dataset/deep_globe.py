@@ -1,4 +1,3 @@
-# Prepare Dataset
 import os
 # from os.path import join
 import torch.utils.data as data
