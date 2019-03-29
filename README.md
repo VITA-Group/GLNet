@@ -45,7 +45,7 @@ GLNet (red dots) integrates both global and local information in a compact way, 
 </p>
 
 ## Citation
-If you use this code for your research, please cite our papers.
+If you use this code for your research, please cite our paper.
 ```
 @inproceedings{chen2019GLNET,
   title={Collaborative Global-Local Networks for Memory-Efﬁcient Segmentation of Ultra-High Resolution Images},
