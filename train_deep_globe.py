@@ -7,7 +7,6 @@ import os
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torchvision import transforms
 from tqdm import tqdm
 from dataset.deep_globe import DeepGlobe, classToRGB, is_image_file
@@ -80,10 +79,6 @@ path_g2l = os.path.join(model_path, "fpn_global2local.508_deep.cat.1x_fmreg_ense
 path_l2g = os.path.join(model_path, "fpn_local2global.508_deep.cat.1x_fmreg_ensemble.p3_3.19.2019.lr2e5.pth")
 model, global_fixed = create_model_load_weights(n_class, mode, evaluation, path_g=path_g, path_g2l=path_g2l, path_l2g=path_l2g)
 
-start_epoch = 0
-if start_epoch > 0:
-    print("restart epoch:", start_epoch)
-    model.load_state_dict(torch.load(os.path.join(model_path, task_name + ".pth")))
 ###################################
 if mode == 1:
     num_epochs = 120

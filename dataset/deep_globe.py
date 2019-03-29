@@ -1,18 +1,14 @@
 # Prepare Dataset
 import os
-from os import listdir
-from os.path import join
-import torch
+# from os.path import join
 import torch.utils.data as data
 import numpy as np
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 from PIL import Image, ImageFile
 import random
 from torchvision.transforms import ToTensor
 from torchvision import transforms
 import cv2
-import math
-import scipy.io
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
@@ -120,7 +116,7 @@ class DeepGlobe(data.Dataset):
         if self.label:
             # label = scipy.io.loadmat(join(self.root, 'Notification/' + self.ids[index].replace('_sat.jpg', '_mask.mat')))["label"]
             # label = Image.fromarray(label)
-            label = Image.open(join(self.root, 'Label/' + self.ids[index].replace('_sat.jpg', '_mask.png')))
+            label = Image.open(os.path.join(self.root, 'Label/' + self.ids[index].replace('_sat.jpg', '_mask.png')))
             sample['label'] = label
         if self.transform and self.label:
             image, label = self._transform(image, label)

@@ -1,9 +1,9 @@
-from .resnet import resnet50, resnet101
+from .resnet import resnet50#, resnet101
 # from .resnet_dilation import resnet50
 import torch.nn as nn
 import torch.nn.functional as F
 import torch
-from torch.autograd import Variable
+# from torch.autograd import Variable
 import numpy as np
 
 
@@ -50,9 +50,9 @@ class fpn_module_global(nn.Module):
 
     def _concatenate(self, p5, p4, p3, p2):
         _, _, H, W = p2.size()
-        p5 = F.upsample(p5, size=(H, W), **self._up_kwargs)
-        p4 = F.upsample(p4, size=(H, W), **self._up_kwargs)
-        p3 = F.upsample(p3, size=(H, W), **self._up_kwargs)
+        p5 = F.interpolate(p5, size=(H, W), **self._up_kwargs)
+        p4 = F.interpolate(p4, size=(H, W), **self._up_kwargs)
+        p3 = F.interpolate(p3, size=(H, W), **self._up_kwargs)
         return torch.cat([p5, p4, p3, p2], dim=1)
 
     def _upsample_add(self, x, y):
@@ -63,7 +63,7 @@ class fpn_module_global(nn.Module):
         Returns:
           (Variable) added feature map.
         Note in PyTorch, when input size is odd, the upsampled feature map
-        with `F.upsample(..., scale_factor=2, mode='nearest')`
+        with `F.interpolate(..., scale_factor=2, mode='nearest')`
         maybe not equal to the lateral feature map size.
         e.g.
         original input size: [N,_,15,15] ->
@@ -72,7 +72,7 @@ class fpn_module_global(nn.Module):
         So we choose bilinear upsample which supports arbitrary output sizes.
         '''
         _, _, H, W = y.size()
-        return F.upsample(x, size=(H, W), **self._up_kwargs) + y
+        return F.interpolate(x, size=(H, W), **self._up_kwargs) + y
 
     def forward(self, c2, c3, c4, c5, c2_ext=None, c3_ext=None, c4_ext=None, c5_ext=None, ps0_ext=None, ps1_ext=None, ps2_ext=None):
 
@@ -161,9 +161,9 @@ class fpn_module_local(nn.Module):
 
     def _concatenate(self, p5, p4, p3, p2):
         _, _, H, W = p2.size()
-        p5 = F.upsample(p5, size=(H, W), **self._up_kwargs)
-        p4 = F.upsample(p4, size=(H, W), **self._up_kwargs)
-        p3 = F.upsample(p3, size=(H, W), **self._up_kwargs)
+        p5 = F.interpolate(p5, size=(H, W), **self._up_kwargs)
+        p4 = F.interpolate(p4, size=(H, W), **self._up_kwargs)
+        p3 = F.interpolate(p3, size=(H, W), **self._up_kwargs)
         return torch.cat([p5, p4, p3, p2], dim=1)
 
     def _upsample_add(self, x, y):
@@ -174,7 +174,7 @@ class fpn_module_local(nn.Module):
         Returns:
           (Variable) added feature map.
         Note in PyTorch, when input size is odd, the upsampled feature map
-        with `F.upsample(..., scale_factor=2, mode='nearest')`
+        with `F.interpolate(..., scale_factor=2, mode='nearest')`
         maybe not equal to the lateral feature map size.
         e.g.
         original input size: [N,_,15,15] ->
@@ -183,37 +183,37 @@ class fpn_module_local(nn.Module):
         So we choose bilinear upsample which supports arbitrary output sizes.
         '''
         _, _, H, W = y.size()
-        return F.upsample(x, size=(H, W), **self._up_kwargs) + y
+        return F.interpolate(x, size=(H, W), **self._up_kwargs) + y
 
     def forward(self, c2, c3, c4, c5, c2_ext, c3_ext, c4_ext, c5_ext, ps0_ext, ps1_ext, ps2_ext):
 
         # Top-down
-        p5 = self.toplayer(torch.cat([c5] + [F.upsample(c5_ext[0], size=c5.size()[2:], **self._up_kwargs)], dim=1))
-        p4 = self._upsample_add(p5, self.latlayer1(torch.cat([c4] + [F.upsample(c4_ext[0], size=c4.size()[2:], **self._up_kwargs)], dim=1)))
-        p3 = self._upsample_add(p4, self.latlayer2(torch.cat([c3] + [F.upsample(c3_ext[0], size=c3.size()[2:], **self._up_kwargs)], dim=1)))
-        p2 = self._upsample_add(p3, self.latlayer3(torch.cat([c2] + [F.upsample(c2_ext[0], size=c2.size()[2:], **self._up_kwargs)], dim=1)))
+        p5 = self.toplayer(torch.cat([c5] + [F.interpolate(c5_ext[0], size=c5.size()[2:], **self._up_kwargs)], dim=1))
+        p4 = self._upsample_add(p5, self.latlayer1(torch.cat([c4] + [F.interpolate(c4_ext[0], size=c4.size()[2:], **self._up_kwargs)], dim=1)))
+        p3 = self._upsample_add(p4, self.latlayer2(torch.cat([c3] + [F.interpolate(c3_ext[0], size=c3.size()[2:], **self._up_kwargs)], dim=1)))
+        p2 = self._upsample_add(p3, self.latlayer3(torch.cat([c2] + [F.interpolate(c2_ext[0], size=c2.size()[2:], **self._up_kwargs)], dim=1)))
         ps0 = [p5, p4, p3, p2]
         
         # Smooth
-        p5 = self.smooth1_1(torch.cat([p5] + [F.upsample(ps0_ext[0][0], size=p5.size()[2:], **self._up_kwargs)], dim=1))
-        p4 = self.smooth2_1(torch.cat([p4] + [F.upsample(ps0_ext[1][0], size=p4.size()[2:], **self._up_kwargs)], dim=1))
-        p3 = self.smooth3_1(torch.cat([p3] + [F.upsample(ps0_ext[2][0], size=p3.size()[2:], **self._up_kwargs)], dim=1))
-        p2 = self.smooth4_1(torch.cat([p2] + [F.upsample(ps0_ext[3][0], size=p2.size()[2:], **self._up_kwargs)], dim=1))
+        p5 = self.smooth1_1(torch.cat([p5] + [F.interpolate(ps0_ext[0][0], size=p5.size()[2:], **self._up_kwargs)], dim=1))
+        p4 = self.smooth2_1(torch.cat([p4] + [F.interpolate(ps0_ext[1][0], size=p4.size()[2:], **self._up_kwargs)], dim=1))
+        p3 = self.smooth3_1(torch.cat([p3] + [F.interpolate(ps0_ext[2][0], size=p3.size()[2:], **self._up_kwargs)], dim=1))
+        p2 = self.smooth4_1(torch.cat([p2] + [F.interpolate(ps0_ext[3][0], size=p2.size()[2:], **self._up_kwargs)], dim=1))
         ps1 = [p5, p4, p3, p2]
         
-        p5 = self.smooth1_2(torch.cat([p5] + [F.upsample(ps1_ext[0][0], size=p5.size()[2:], **self._up_kwargs)], dim=1))
-        p4 = self.smooth2_2(torch.cat([p4] + [F.upsample(ps1_ext[1][0], size=p4.size()[2:], **self._up_kwargs)], dim=1))
-        p3 = self.smooth3_2(torch.cat([p3] + [F.upsample(ps1_ext[2][0], size=p3.size()[2:], **self._up_kwargs)], dim=1))
-        p2 = self.smooth4_2(torch.cat([p2] + [F.upsample(ps1_ext[3][0], size=p2.size()[2:], **self._up_kwargs)], dim=1))
+        p5 = self.smooth1_2(torch.cat([p5] + [F.interpolate(ps1_ext[0][0], size=p5.size()[2:], **self._up_kwargs)], dim=1))
+        p4 = self.smooth2_2(torch.cat([p4] + [F.interpolate(ps1_ext[1][0], size=p4.size()[2:], **self._up_kwargs)], dim=1))
+        p3 = self.smooth3_2(torch.cat([p3] + [F.interpolate(ps1_ext[2][0], size=p3.size()[2:], **self._up_kwargs)], dim=1))
+        p2 = self.smooth4_2(torch.cat([p2] + [F.interpolate(ps1_ext[3][0], size=p2.size()[2:], **self._up_kwargs)], dim=1))
         ps2 = [p5, p4, p3, p2]
 
         # Classify
         # use ps2_ext
         ps3 = self._concatenate(
-                torch.cat([p5] + [F.upsample(ps2_ext[0][0], size=p5.size()[2:], **self._up_kwargs)], dim=1), 
-                torch.cat([p4] + [F.upsample(ps2_ext[1][0], size=p4.size()[2:], **self._up_kwargs)], dim=1), 
-                torch.cat([p3] + [F.upsample(ps2_ext[2][0], size=p3.size()[2:], **self._up_kwargs)], dim=1), 
-                torch.cat([p2] + [F.upsample(ps2_ext[3][0], size=p2.size()[2:], **self._up_kwargs)], dim=1)
+                torch.cat([p5] + [F.interpolate(ps2_ext[0][0], size=p5.size()[2:], **self._up_kwargs)], dim=1), 
+                torch.cat([p4] + [F.interpolate(ps2_ext[1][0], size=p4.size()[2:], **self._up_kwargs)], dim=1), 
+                torch.cat([p3] + [F.interpolate(ps2_ext[2][0], size=p3.size()[2:], **self._up_kwargs)], dim=1), 
+                torch.cat([p2] + [F.interpolate(ps2_ext[3][0], size=p2.size()[2:], **self._up_kwargs)], dim=1)
             )
         ps3 = self.smooth(ps3)
         output = self.classify(ps3)
@@ -321,7 +321,7 @@ class fpn(nn.Module):
         for i in range(b):
             top, left = int(np.round(top_lefts[i][0] * H)), int(np.round(top_lefts[i][1] * W))
             # # global's sub-region & upsample
-            # f_global_patch = F.upsample(f_global[0:1, :, top:top+h, left:left+w], size=(h, w), mode='bilinear')
+            # f_global_patch = F.interpolate(f_global[0:1, :, top:top+h, left:left+w], size=(h, w), mode='bilinear')
             f_global_patch = f_global[0:1, :, top:top+h, left:left+w]
             crop.append(f_global_patch[0])
         crop = torch.stack(crop, dim=0) # stack into mini-batch
@@ -341,9 +341,9 @@ class fpn(nn.Module):
         for i in range(b):
             index = oped[0] + i
             top, left = int(np.round(H * top_lefts[index][0])), int(np.round(W * top_lefts[index][1]))
-            merge[:, :, top:top+h, left:left+w] += F.upsample(f_local[i:i+1], size=(h, w), **self._up_kwargs)
+            merge[:, :, top:top+h, left:left+w] += F.interpolate(f_local[i:i+1], size=(h, w), **self._up_kwargs)
         if oped[1] >= len(top_lefts):
-            template = F.upsample(template, size=(H, W), **self._up_kwargs)
+            template = F.interpolate(template, size=(H, W), **self._up_kwargs)
             template = template.expand_as(merge)
             # template = Variable(template).cuda()
             merge /= template
@@ -362,7 +362,7 @@ class fpn(nn.Module):
             if self.patch_n == 0:
                 self.c2_g, self.c3_g, self.c4_g, self.c5_g = global_model.module.resnet_global.forward(image_global)
                 self.output_g, self.ps0_g, self.ps1_g, self.ps2_g, self.ps3_g = global_model.module.fpn_global.forward(self.c2_g, self.c3_g, self.c4_g, self.c5_g)
-                # self.output_g = F.upsample(self.output_g, image_global.size()[2:], **self._up_kwargs)
+                # self.output_g = F.interpolate(self.output_g, image_global.size()[2:], **self._up_kwargs)
             self.patch_n += patches.size()[0]
             self.patch_n %= n_patch_all
 
@@ -380,7 +380,7 @@ class fpn(nn.Module):
                 ps1_ext=[ self._crop_global(f, top_lefts[oped[0]:oped[1]], ratio) for f in self.ps1_g ],
                 ps2_ext=[ self._crop_global(f, top_lefts[oped[0]:oped[1]], ratio) for f in self.ps2_g ]
             )
-            # output = F.upsample(output, patches.size()[2:], **self._up_kwargs)
+            # output = F.interpolate(output, patches.size()[2:], **self._up_kwargs)
 
             self.c2_b = self._merge_local(c2, self.c2_b, self.c2_g, top_lefts, oped, ratio, template)
             self.c3_b = self._merge_local(c3, self.c3_b, self.c3_g, top_lefts, oped, ratio, template)
@@ -446,25 +446,24 @@ class fpn(nn.Module):
     def forward(self, image_global, patches, top_lefts, ratio, mode=1, global_model=None, n_patch=None):
         if mode == 1:
             # train global model
-            imsize = image_global.size()[2:]
             c2_g, c3_g, c4_g, c5_g = self.resnet_global.forward(image_global)
             output_g, ps0_g, ps1_g, ps2_g, ps3_g = self.fpn_global.forward(c2_g, c3_g, c4_g, c5_g)
-            # output_g = F.upsample(output_g, imsize, **self._up_kwargs)
+            # imsize = image_global.size()[2:]
+            # output_g = F.interpolate(output_g, imsize, **self._up_kwargs)
             return output_g, None
         elif mode == 2:
             # train global2local model
             with torch.no_grad():
                 if self.patch_n == 0:
-                    imsize_glb = image_global.size()[2:]
                     # calculate global images only if patches belong to a new set of global images (when self.patch_n % n_patch == 0)
                     self.c2_g, self.c3_g, self.c4_g, self.c5_g = self.resnet_global.forward(image_global)
                     self.output_g, self.ps0_g, self.ps1_g, self.ps2_g, self.ps3_g = self.fpn_global.forward(self.c2_g, self.c3_g, self.c4_g, self.c5_g)
-                    # self.output_g = F.upsample(self.output_g, imsize_glb, **self._up_kwargs)
+                    # imsize_glb = image_global.size()[2:]
+                    # self.output_g = F.interpolate(self.output_g, imsize_glb, **self._up_kwargs)
                 self.patch_n += patches.size()[0]
                 self.patch_n %= n_patch
 
             # train local model #######################################
-            imsize = patches.size()[2:]
             c2_l, c3_l, c4_l, c5_l = self.resnet_local.forward(patches)
             # global's 1x patch cat
             output_l, ps0_l, ps1_l, ps2_l, ps3_l = self.fpn_local.forward(c2_l, c3_l, c4_l, c5_l,
@@ -476,19 +475,20 @@ class fpn(nn.Module):
                 [ self._crop_global(f, top_lefts, ratio) for f in self.ps1_g ],
                 [ self._crop_global(f, top_lefts, ratio) for f in self.ps2_g ]
             )
-            # output_l = F.upsample(output_l, imsize, **self._up_kwargs)
+            # imsize = patches.size()[2:]
+            # output_l = F.interpolate(output_l, imsize, **self._up_kwargs)
             ps3_g2l = self._crop_global(self.ps3_g, top_lefts, ratio)[0] # only calculate loss on 1x
-            ps3_g2l = F.upsample(ps3_g2l, size=ps3_l.size()[2:], **self._up_kwargs)
+            ps3_g2l = F.interpolate(ps3_g2l, size=ps3_l.size()[2:], **self._up_kwargs)
 
             output = self.ensemble(ps3_l, ps3_g2l)
-            # output = F.upsample(output, imsize, **self._up_kwargs)
+            # output = F.interpolate(output, imsize, **self._up_kwargs)
             return output, self.output_g, output_l, self.mse(ps3_l, ps3_g2l)
         else:
             # train local2global model
-            imsize = image_global.size()[2:]
             c2_g, c3_g, c4_g, c5_g = self.resnet_global.forward(image_global)
             # local patch cat into global
             output_g, ps0_g, ps1_g, ps2_g, ps3_g = self.fpn_global.forward(c2_g, c3_g, c4_g, c5_g, c2_ext=self.c2_l, c3_ext=self.c3_l, c4_ext=self.c4_l, c5_ext=self.c5_l, ps0_ext=self.ps0_l, ps1_ext=self.ps1_l, ps2_ext=self.ps2_l)
-            # output_g = F.upsample(output_g, imsize, **self._up_kwargs)
+            # imsize = image_global.size()[2:]
+            # output_g = F.interpolate(output_g, imsize, **self._up_kwargs)
             self.clear_cache()
             return output_g, ps3_g
