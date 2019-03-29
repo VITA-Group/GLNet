@@ -44,18 +44,16 @@ GLNet (red dots) integrates both global and local information in a compact way, 
 <b>Deep feature map sharing</b>: at each layer, feature maps with global context and ones with local fine structures are bidirectionally brought together, contributing to a complete patch-based deep global-local collaboration.
 </p>
 
-## Acknowledge
-The work of Z. Wang is in part supported by the National Science Foundation Award RI-1755701. The work of X.Qian is in part supported by the National Science Foundation Award CCF-1553281. We also thank Prof. Andrew Jiang and Junru Wu for helping experiments.
-
-<!--
 ## Citation
 If you use this code for your research, please cite our papers.
 ```
 @inproceedings{chen2019GLNET,
   title={Collaborative Global-Local Networks for Memory-Efﬁcient Segmentation of Ultra-High Resolution Images},
-  author={Chen, Wuyang and Ziyu Jiang and Zhangyang Wang and Kexin Cui and Xiaoning Qian},
+  author={Chen, Wuyang and Jiang, Ziyu and Wang, Zhangyang and Cui, Kexin and Qian, Xiaoning},
   booktitle={Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition},
   year={2019}
 }
 ```
--->
+
+## Acknowledge
+The work of Z. Wang is in part supported by the National Science Foundation Award RI-1755701. The work of X.Qian is in part supported by the National Science Foundation Award CCF-1553281. We also thank Prof. Andrew Jiang and Junru Wu for helping experiments.
