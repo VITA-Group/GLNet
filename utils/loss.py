@@ -13,10 +13,14 @@ class CrossEntropyLoss2d(nn.Module):
 
 
 def one_hot(index, classes):
-    size = index.size()[:1] + (classes,) + index.size()[1:]
-    view = index.size()[:1] + (1,) + index.size()[1:]
-    # size = index.size()[:1] + (classes,)
-    # view = index.size()[:1] + (1,)
+    # index is not flattened (pypass ignore) ############
+    # size = index.size()[:1] + (classes,) + index.size()[1:]
+    # view = index.size()[:1] + (1,) + index.size()[1:]
+    #####################################################
+    # index is flatten (during ignore) ##################
+    size = index.size()[:1] + (classes,)
+    view = index.size()[:1] + (1,)
+    #####################################################
 
     # mask = torch.Tensor(size).fill_(0).to(device)
     mask = torch.Tensor(size).fill_(0).cuda()
@@ -40,14 +44,13 @@ class FocalLoss(nn.Module):
         '''
         only support ignore at 0
         '''
-        # B, C, H, W = input.size()
-        # input = input.permute(0, 2, 3, 1).contiguous().view(-1, C)  # B * H * W, C = P, C
-        # target = target.view(-1)
-        # if self.ignore is not None:
-        #     valid = (target != self.ignore)
-        #     input = input[valid.nonzero().squeeze()]
-        #     target = target[valid]
-        #     target = target - 1
+        B, C, H, W = input.size()
+        input = input.permute(0, 2, 3, 1).contiguous().view(-1, C)  # B * H * W, C = P, C
+        target = target.view(-1)
+        if self.ignore is not None:
+            valid = (target != self.ignore)
+            input = input[valid]
+            target = target[valid]
 
         if self.one_hot: target = one_hot(target, input.size(1))
         probs = F.softmax(input, dim=1)

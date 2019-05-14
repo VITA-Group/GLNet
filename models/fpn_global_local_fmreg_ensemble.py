@@ -5,13 +5,14 @@ import torch.nn.functional as F
 import torch
 # from torch.autograd import Variable
 import numpy as np
+from pdb import set_trace as bp
 
 
 class fpn_module_global(nn.Module):
     def __init__(self, numClass):
         super(fpn_module_global, self).__init__()
-        # self._up_kwargs = {'mode': 'bilinear', 'align_corners': True}
-        self._up_kwargs = {'mode': 'bilinear'}
+        self._up_kwargs = {'mode': 'bilinear', 'align_corners': True}
+        # self._up_kwargs = {'mode': 'bilinear'}
         # Top layer
         self.toplayer = nn.Conv2d(2048, 256, kernel_size=1, stride=1, padding=0) # Reduce channels
         # Lateral layers
@@ -134,8 +135,8 @@ class fpn_module_global(nn.Module):
 class fpn_module_local(nn.Module):
     def __init__(self, numClass):
         super(fpn_module_local, self).__init__()
-        # self._up_kwargs = {'mode': 'bilinear', 'align_corners': True}
-        self._up_kwargs = {'mode': 'bilinear'}
+        self._up_kwargs = {'mode': 'bilinear', 'align_corners': True}
+        # self._up_kwargs = {'mode': 'bilinear'}
         # Top layer
         fold = 2
         self.toplayer = nn.Conv2d(2048 * fold, 256, kernel_size=1, stride=1, padding=0) # Reduce channels
@@ -224,8 +225,8 @@ class fpn_module_local(nn.Module):
 class fpn(nn.Module):
     def __init__(self, numClass):
         super(fpn, self).__init__()
-        # self._up_kwargs = {'mode': 'bilinear', 'align_corners': True}
-        self._up_kwargs = {'mode': 'bilinear'}
+        self._up_kwargs = {'mode': 'bilinear', 'align_corners': True}
+        # self._up_kwargs = {'mode': 'bilinear'}
         # Res net
         self.resnet_global = resnet50(True)
         self.resnet_local = resnet50(True)
@@ -312,7 +313,7 @@ class fpn(nn.Module):
         '''
         _, c, H, W = f_global.size()
         b = len(top_lefts)
-        h, w = int(np.round(H * ratio)), int(np.round(W * ratio))
+        h, w = int(np.round(H * ratio[0])), int(np.round(W * ratio[1]))
 
         # bbox = [ np.array([left, top, left + ratio, top + ratio]) for (top, left) in top_lefts ]
         # crop = self._sample_grid(f_global, bbox, (H, W))
@@ -337,7 +338,7 @@ class fpn(nn.Module):
         _, c, H, W = f_global.size() # match global feature size
         if merge is None:
             merge = torch.zeros((1, c, H, W)).cuda()
-        h, w = int(np.round(H * ratio)), int(np.round(W * ratio))
+        h, w = int(np.round(H * ratio[0])), int(np.round(W * ratio[1]))
         for i in range(b):
             index = oped[0] + i
             top, left = int(np.round(H * top_lefts[index][0])), int(np.round(W * top_lefts[index][1]))
@@ -362,7 +363,7 @@ class fpn(nn.Module):
             if self.patch_n == 0:
                 self.c2_g, self.c3_g, self.c4_g, self.c5_g = global_model.module.resnet_global.forward(image_global)
                 self.output_g, self.ps0_g, self.ps1_g, self.ps2_g, self.ps3_g = global_model.module.fpn_global.forward(self.c2_g, self.c3_g, self.c4_g, self.c5_g)
-                # self.output_g = F.interpolate(self.output_g, image_global.size()[2:], **self._up_kwargs)
+                # self.output_g = F.interpolate(self.output_g, image_global.size()[2:], mode='nearest')
             self.patch_n += patches.size()[0]
             self.patch_n %= n_patch_all
 
@@ -380,7 +381,7 @@ class fpn(nn.Module):
                 ps1_ext=[ self._crop_global(f, top_lefts[oped[0]:oped[1]], ratio) for f in self.ps1_g ],
                 ps2_ext=[ self._crop_global(f, top_lefts[oped[0]:oped[1]], ratio) for f in self.ps2_g ]
             )
-            # output = F.interpolate(output, patches.size()[2:], **self._up_kwargs)
+            # output = F.interpolate(output, patches.size()[2:], mode='nearest')
 
             self.c2_b = self._merge_local(c2, self.c2_b, self.c2_g, top_lefts, oped, ratio, template)
             self.c3_b = self._merge_local(c3, self.c3_b, self.c3_g, top_lefts, oped, ratio, template)
@@ -449,7 +450,7 @@ class fpn(nn.Module):
             c2_g, c3_g, c4_g, c5_g = self.resnet_global.forward(image_global)
             output_g, ps0_g, ps1_g, ps2_g, ps3_g = self.fpn_global.forward(c2_g, c3_g, c4_g, c5_g)
             # imsize = image_global.size()[2:]
-            # output_g = F.interpolate(output_g, imsize, **self._up_kwargs)
+            # output_g = F.interpolate(output_g, imsize, mode='nearest')
             return output_g, None
         elif mode == 2:
             # train global2local model
@@ -459,7 +460,7 @@ class fpn(nn.Module):
                     self.c2_g, self.c3_g, self.c4_g, self.c5_g = self.resnet_global.forward(image_global)
                     self.output_g, self.ps0_g, self.ps1_g, self.ps2_g, self.ps3_g = self.fpn_global.forward(self.c2_g, self.c3_g, self.c4_g, self.c5_g)
                     # imsize_glb = image_global.size()[2:]
-                    # self.output_g = F.interpolate(self.output_g, imsize_glb, **self._up_kwargs)
+                    # self.output_g = F.interpolate(self.output_g, imsize_glb, mode='nearest')
                 self.patch_n += patches.size()[0]
                 self.patch_n %= n_patch
 
@@ -476,12 +477,12 @@ class fpn(nn.Module):
                 [ self._crop_global(f, top_lefts, ratio) for f in self.ps2_g ]
             )
             # imsize = patches.size()[2:]
-            # output_l = F.interpolate(output_l, imsize, **self._up_kwargs)
+            # output_l = F.interpolate(output_l, imsize, mode='nearest')
             ps3_g2l = self._crop_global(self.ps3_g, top_lefts, ratio)[0] # only calculate loss on 1x
             ps3_g2l = F.interpolate(ps3_g2l, size=ps3_l.size()[2:], **self._up_kwargs)
 
             output = self.ensemble(ps3_l, ps3_g2l)
-            # output = F.interpolate(output, imsize, **self._up_kwargs)
+            # output = F.interpolate(output, imsize, mode='nearest')
             return output, self.output_g, output_l, self.mse(ps3_l, ps3_g2l)
         else:
             # train local2global model
@@ -489,6 +490,6 @@ class fpn(nn.Module):
             # local patch cat into global
             output_g, ps0_g, ps1_g, ps2_g, ps3_g = self.fpn_global.forward(c2_g, c3_g, c4_g, c5_g, c2_ext=self.c2_l, c3_ext=self.c3_l, c4_ext=self.c4_l, c5_ext=self.c5_l, ps0_ext=self.ps0_l, ps1_ext=self.ps1_l, ps2_ext=self.ps2_l)
             # imsize = image_global.size()[2:]
-            # output_g = F.interpolate(output_g, imsize, **self._up_kwargs)
+            # output_g = F.interpolate(output_g, imsize, mode='nearest')
             self.clear_cache()
             return output_g, ps3_g
