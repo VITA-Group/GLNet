@@ -8,7 +8,7 @@ We will provide a complete usage pretrained models for our paper very soon.
 
 Wuyang Chen*, Ziyu Jiang*, Zhangyang Wang, Kexin Cui, and Xiaoning Qian
 
-In CVPR 2019 (Oral).
+In CVPR 2019 (Oral). [Youtube](https://www.youtube.com/watch?v=am1GiItQI88)
 
 ## Overview
 
