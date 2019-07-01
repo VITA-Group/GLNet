@@ -11,10 +11,25 @@ from torchvision import transforms
 from torchvision.transforms import ToTensor
 
 
+def classToRGB(label):
+    l, w = label.shape[0], label.shape[1]
+    colmap = np.zeros(shape=(l, w, 3)).astype(np.float32)
+    indices = np.where(label == 0)
+    colmap[indices[0].tolist(), indices[1].tolist(), :] = [0, 255, 255]
+    indices = np.where(label == 1)
+    colmap[indices[0].tolist(), indices[1].tolist(), :] = [255, 255, 0]
+    indices = np.where(label == 2)
+    colmap[indices[0].tolist(), indices[1].tolist(), :] = [255, 0, 255]
+    transform = ToTensor()
+    #     plt.imshow(colmap)
+    #     plt.show()
+    return transform(colmap)
+
+
 class Cinnamon(data.Dataset):
     """ Custom Cinnamon datasets class """
 
-    def __init__(self, root, ids, label=False, transforms=False):
+    def __init__(self, root, ids, label=False, transform=False):
         super(Cinnamon, self).__init__()
         """
         Args:

@@ -1,5 +1,5 @@
 export CUDA_VISIBLE_DEVICES=0
-python train_deep_globe.py \
+python3 train_deep_globe.py \
 --n_class 7 \
 --data_path "/ssd1/chenwy/deep_globe/data/" \
 --model_path "/home/chenwy/deep_globe/FPN_based/github/saved_models/" \

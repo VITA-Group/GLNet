@@ -9,7 +9,8 @@ import torch
 import torch.nn as nn
 from torchvision import transforms
 from tqdm import tqdm
-from dataset.cinnamon import Cinnamon, classToRGB, is_image_file
+from dataset.cinnamon import Cinnamon, classToRGB
+from dataset.deep_globe import is_image_file
 from utils.loss import CrossEntropyLoss2d, SoftCrossEntropyLoss2d, FocalLoss
 from utils.lovasz_losses import lovasz_softmax
 from utils.lr_scheduler import LR_Scheduler

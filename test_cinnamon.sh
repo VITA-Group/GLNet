@@ -1,5 +1,5 @@
 export CUDA_VISIBLE_DEVICES=0
-python train_cinnamon.py \
+python3 train_cinnamon.py \
 --n_class 3 \
 --data_path "/home/linus/2DOCR/data/tadashi/" \
 --model_path "/home/linus/2DOCR/ultra_high_resolution_segmentation/experiments/default/" \
