@@ -43,9 +43,9 @@ print("mode:", mode, "evaluation:", evaluation, "test:", test)
 print("preparing datasets and dataloaders......")
 batch_size = args.batch_size
 
-train_path = os.path.join(data_path, "land-train", "land-train")
-val_path = os.path.join(data_path, "land-train", "land-train")
-test_path = os.path.join(data_path, "land-train", "land-train")
+train_path = os.path.join(data_path, 'train')
+val_path = os.path.join(data_path, 'val')
+test_path = os.path.join(data_path, 'test')
 
 ids_train = [image_name for image_name in os.listdir(train_path) if is_image_file(image_name)]
 # ids_train = [image_name for image_name in os.listdir(os.path.join(data_path, "train_test", "Sat")) if is_image_file(image_name)]
