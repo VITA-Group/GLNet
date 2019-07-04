@@ -15,11 +15,9 @@ def classToRGB(label):
     l, w = label.shape[0], label.shape[1]
     colmap = np.zeros(shape=(l, w, 3)).astype(np.float32)
     indices = np.where(label == 0)
-    colmap[indices[0].tolist(), indices[1].tolist(), :] = [0, 255, 255]
+    colmap[indices[0].tolist(), indices[1].tolist(), :] = [0, 0, 0]
     indices = np.where(label == 1)
-    colmap[indices[0].tolist(), indices[1].tolist(), :] = [255, 255, 0]
-    indices = np.where(label == 2)
-    colmap[indices[0].tolist(), indices[1].tolist(), :] = [255, 0, 255]
+    colmap[indices[0].tolist(), indices[1].tolist(), :] = [255, 255, 255]
     transform = ToTensor()
     #     plt.imshow(colmap)
     #     plt.show()
@@ -41,7 +39,7 @@ class Cinnamon(data.Dataset):
         self.label = label
         self.transform = transform
         self.ids = ids
-        self.classdict = {0: "background", 1: "text", 2: "table border"}
+        self.classdict = {0: "background", 1: "text"}
         self.color_jitter = transforms.ColorJitter(
             brightness=0.3, contrast=0.3, saturation=0.3, hue=0.04)
         self.resizer = transforms.Resize((2448, 2448))
