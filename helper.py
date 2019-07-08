@@ -32,10 +32,10 @@ def resize(images, shape, label=False):
     resized = list(images)
     for i in range(len(images)):
         if label:
-            resized[i] = images[i].resize(shape, Image.NEAREST)
+            resized[i] = images[i].resize(shape, Image.NEAREST).convert('L')
             # resized[i] = images[i].resize(shape, Image.BILINEAR)
         else:
-            resized[i] = images[i].resize(shape, Image.BILINEAR)
+            resized[i] = images[i].resize(shape, Image.BILINEAR).convert('RGB')
     return resized
 
 def _mask_transform(mask):
