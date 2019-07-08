@@ -109,13 +109,13 @@ class DeepGlobe(data.Dataset):
     def __getitem__(self, index):
         sample = {}
         sample['id'] = self.ids[index][:-8]
-        image = Image.open(os.path.join(self.root, "Sat/" + self.ids[index])) # w, h
+        image = Image.open(os.path.join(self.root, self.ids[index])) # w, h
         sample['image'] = image
         # sample['image'] = transforms.functional.adjust_contrast(image, 1.4)
         if self.label:
             # label = scipy.io.loadmat(join(self.root, 'Notification/' + self.ids[index].replace('_sat.jpg', '_mask.mat')))["label"]
             # label = Image.fromarray(label)
-            label = Image.open(os.path.join(self.root, 'Label/' + self.ids[index].replace('_sat.jpg', '_mask.png')))
+            label = Image.open(os.path.join(self.root, self.ids[index].replace('_sat.jpg', '_mask.png')))
             sample['label'] = label
         if self.transform and self.label:
             image, label = self._transform(image, label)
