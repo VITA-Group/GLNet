@@ -13,6 +13,7 @@ from torchvision import transforms
 from models.fpn_global_local_fmreg_ensemble import fpn
 from utils.metrics import ConfusionMatrix
 from PIL import Image
+from dataset.deep_globe import rgb_label_to_target
 
 # torch.cuda.synchronize()
 # torch.backends.cudnn.benchmark = True
@@ -20,7 +21,7 @@ torch.backends.cudnn.deterministic = True
 
 transformer = transforms.Compose([
     transforms.ToTensor(),
-    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+    # transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
     # transforms.Normalize([.485, .456, .406], [.229, .224, .225]),
 ])
 
@@ -32,7 +33,8 @@ def resize(images, shape, label=False):
     resized = list(images)
     for i in range(len(images)):
         if label:
-            resized[i] = images[i].resize(shape, Image.NEAREST).convert('L')
+            resized[i] = images[i].resize(shape, Image.NEAREST)
+            #.convert('RGB')
             # resized[i] = images[i].resize(shape, Image.BILINEAR)
         else:
             resized[i] = images[i].resize(shape, Image.BILINEAR).convert('RGB')
@@ -329,6 +331,7 @@ class Trainer(object):
         labels_glb = resize(labels, (self.size_g[0] // 4, self.size_g[1] // 4), label=True) # down 1/4 for loss
         # labels_glb = resize(labels, self.size_g, label=True) # must downsample image for reduced GPU memory
         labels_glb = masks_transform(labels_glb)
+        labels_glb = rgb_label_to_target(labels_glb)
 
         if self.mode == 2 or self.mode == 3:
             patches, coordinates, templates, sizes, ratios = global2patch(images, self.size_p)
