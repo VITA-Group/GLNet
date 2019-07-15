@@ -8,6 +8,7 @@ import random
 from torchvision.transforms import ToTensor
 from torchvision import transforms
 import cv2
+import torch
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
@@ -66,15 +67,26 @@ def classToRGB(label):
     return transform(colmap)
 
 
-def class_to_target(inputs, numClass):
+def class_to_target(inputs, numClass=7):
     batchSize, l, w = inputs.shape[0], inputs.shape[1], inputs.shape[2]
     target = np.zeros(shape=(batchSize, l, w, numClass), dtype=np.float32)
-    for index in range(7):
+    for index in range(numClass):
         indices = np.where(inputs == index)
         temp = np.zeros(shape=7, dtype=np.float32)
         temp[index] = 1
         target[indices[0].tolist(), indices[1].tolist(), indices[2].tolist(), :] = temp
     return target.transpose(0, 3, 1, 2)
+
+def rgb_label_to_target(input):
+    batch_size, height, width, num_channel = input.size()
+    batch = []
+    for i in range(batch_size):
+        img = input[i, :, :, :].cpu().numpy()
+        classmap = RGB_mapping_to_class(img)
+        batch.append(classmap)
+    class_maps = torch.from_numpy(np.stack(batch, axis=0))
+    target = class_to_target(class_maps)
+    return torch.from_numpy(target).permute(0, 2, 3, 1).type(torch.LongTensor).cuda()
 
 
 def label_bluring(inputs):

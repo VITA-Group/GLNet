@@ -45,14 +45,16 @@ class FocalLoss(nn.Module):
         only support ignore at 0
         '''
         B, C, H, W = input.size()
+        
         input = input.permute(0, 2, 3, 1).contiguous().view(-1, C)  # B * H * W, C = P, C
-        target = target.view(-1)
-        if self.ignore is not None:
-            valid = (target != self.ignore)
-            input = input[valid]
-            target = target[valid]
+        target = target.contiguous().view(-1, C).type(torch.cuda.FloatTensor)
+        # target = target.view(-1)
+        # if self.ignore is not None:
+        #     valid = (target != self.ignore)
+        #     input = input[valid]
+        #     target = target[valid]
 
-        if self.one_hot: target = one_hot(target, input.size(1))
+        # if self.one_hot: target = one_hot(target, input.size(1))
         probs = F.softmax(input, dim=1)
         probs = (probs * target).sum(1)
         probs = probs.clamp(self.eps, 1. - self.eps)
