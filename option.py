@@ -4,9 +4,7 @@
 # Copyright (c) 2018
 ###########################################################################
 
-import os
 import argparse
-import torch
 
 # path_g = os.path.join(model_path, "cityscapes_global.800_4.5.2019.lr5e5.pth")
 # # path_g = os.path.join(model_path, "fpn_global.804_nonorm_3.17.2019.lr2e5" + ".pth")

@@ -13,7 +13,6 @@ from torchvision import transforms
 from models.fpn_global_local_fmreg_ensemble import fpn
 from utils.metrics import ConfusionMatrix
 from PIL import Image
-from dataset.deep_globe import rgb_label_to_target
 
 # torch.cuda.synchronize()
 # torch.backends.cudnn.benchmark = True

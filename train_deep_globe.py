@@ -10,7 +10,7 @@ import torch.nn as nn
 from torchvision import transforms
 from tqdm import tqdm
 from dataset.deep_globe import DeepGlobe, classToRGB, is_image_file
-from utils.loss import CrossEntropyLoss2d, SoftCrossEntropyLoss2d, FocalLoss
+from utils.loss import FocalLoss
 from utils.lovasz_losses import lovasz_softmax
 from utils.lr_scheduler import LR_Scheduler
 from tensorboardX import SummaryWriter

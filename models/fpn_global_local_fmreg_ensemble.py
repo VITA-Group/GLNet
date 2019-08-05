@@ -5,7 +5,6 @@ import torch.nn.functional as F
 import torch
 # from torch.autograd import Variable
 import numpy as np
-from pdb import set_trace as bp
 
 
 class fpn_module_global(nn.Module):
