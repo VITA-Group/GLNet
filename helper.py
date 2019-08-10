@@ -24,6 +24,7 @@ transformer = transforms.Compose([
     # transforms.Normalize([.485, .456, .406], [.229, .224, .225]),
 ])
 
+
 def resize(images, shape, label=False):
     '''
     resize PIL images
@@ -33,17 +34,19 @@ def resize(images, shape, label=False):
     for i in range(len(images)):
         if label:
             resized[i] = images[i].resize(shape, Image.NEAREST)
-            #.convert('RGB')
+            # .convert('RGB')
             # resized[i] = images[i].resize(shape, Image.BILINEAR)
         else:
             resized[i] = images[i].resize(shape, Image.BILINEAR).convert('RGB')
     return resized
+
 
 def _mask_transform(mask):
     target = np.array(mask).astype('int32')
     target[target == 255] = -1
     # target -= 1 # in DeepGlobe: make class 0 (should be ignored) as -1 (to be ignored in cross_entropy)
     return target
+
 
 def masks_transform(masks, numpy=False):
     '''
@@ -58,6 +61,7 @@ def masks_transform(masks, numpy=False):
     else:
         return torch.from_numpy(targets).long().cuda()
 
+
 def images_transform(images):
     '''
     images: list of PIL images
@@ -67,6 +71,7 @@ def images_transform(images):
         inputs.append(transformer(img))
     inputs = torch.stack(inputs, dim=0).cuda()
     return inputs
+
 
 def get_patch_info(shape, p_size):
     '''
@@ -87,13 +92,19 @@ def get_patch_info(shape, p_size):
         m += 1
     return n, m, (x - p_size) * 1.0 / (n - 1), (y - p_size) * 1.0 / (m - 1)
 
+
 def global2patch(images, p_size):
     '''
     image/label => patches
     p_size: patch size
     return: list of PIL patch images; coordinates: images->patches; ratios: (h, w)
     '''
-    patches = []; coordinates = []; templates = []; sizes = []; ratios = [(0, 0)] * len(images); patch_ones = np.ones(p_size)
+    patches = []
+    coordinates = []
+    templates = []
+    sizes = []
+    ratios = [(0, 0)] * len(images)
+    patch_ones = np.ones(p_size)
     for i in range(len(images)):
         w, h = images[i].size
         size = (h, w)
@@ -104,15 +115,22 @@ def global2patch(images, p_size):
         patches.append([images[i]] * (n_x * n_y))
         coordinates.append([(0, 0)] * (n_x * n_y))
         for x in range(n_x):
-            if x < n_x - 1: top = int(np.round(x * step_x))
-            else: top = size[0] - p_size[0]
+            if x < n_x - 1:
+                top = int(np.round(x * step_x))
+            else:
+                top = size[0] - p_size[0]
             for y in range(n_y):
-                if y < n_y - 1: left = int(np.round(y * step_y))
-                else: left = size[1] - p_size[1]
+                if y < n_y - 1:
+                    left = int(np.round(y * step_y))
+                else:
+                    left = size[1] - p_size[1]
                 template[top:top+p_size[0], left:left+p_size[1]] += patch_ones
-                coordinates[i][x * n_y + y] = (1.0 * top / size[0], 1.0 * left / size[1])
-                patches[i][x * n_y + y] = transforms.functional.crop(images[i], top, left, p_size[0], p_size[1])
-        templates.append(Variable(torch.Tensor(template).expand(1, 1, -1, -1)).cuda())
+                coordinates[i][x * n_y +
+                               y] = (1.0 * top / size[0], 1.0 * left / size[1])
+                patches[i][x * n_y + y] = transforms.functional.crop(
+                    images[i], top, left, p_size[0], p_size[1])
+        templates.append(Variable(torch.Tensor(
+            template).expand(1, 1, -1, -1)).cuda())
     return patches, coordinates, templates, sizes, ratios
 
 # def global2patch(images, n, step, size):
@@ -129,17 +147,20 @@ def global2patch(images, p_size):
 #                 # patches[i][x * n + y] = images[i].crop((y * step, x * step, y * step + size[1], x * step + size[0]))
 #     return patches
 
+
 def patch2global(patches, n_class, sizes, coordinates, p_size):
     '''
     predicted patches (after classify layer) => predictions
     return: list of np.array
     '''
-    predictions = [ np.zeros((n_class, size[0], size[1])) for size in sizes ]
+    predictions = [np.zeros((n_class, size[0], size[1])) for size in sizes]
     for i in range(len(sizes)):
         for j in range(len(coordinates[i])):
             top, left = coordinates[i][j]
-            top = int(np.round(top * sizes[i][0])); left = int(np.round(left * sizes[i][1]))
-            predictions[i][:, top: top + p_size[0], left: left + p_size[1]] += patches[i][j]
+            top = int(np.round(top * sizes[i][0]))
+            left = int(np.round(left * sizes[i][1]))
+            predictions[i][:, top: top + p_size[0],
+                           left: left + p_size[1]] += patches[i][j]
     return predictions
 
 # def patch2global(patches, n_class, n, step, size0, size_p, batch_size):
@@ -153,6 +174,7 @@ def patch2global(patches, n_class, sizes, coordinates, p_size):
 #             for k in range(n):
 #                 predictions[i][:, j * step: j * step + size_p[0], k * step: k * step + size_p[1]] += patches[i][j * n + k]
 #     return predictions
+
 
 def template_patch2global(size0, size_p, n, step):
     template = np.zeros(size0)
@@ -171,28 +193,30 @@ def template_patch2global(size0, size_p, n, step):
         y = 0
     return Variable(torch.Tensor(template).expand(1, 1, -1, -1)).cuda(), coordinates
 
-def one_hot_gaussian_blur(index, classes):
-    '''
-    index: numpy array b, h, w
-    classes: int
-    '''
-    mask = np.transpose((np.arange(classes) == index[..., None]).astype(float), (0, 3, 1, 2))
-    b, c, _, _ = mask.shape
-    for i in range(b):
-        for j in range(c):
-            mask[i][j] = cv2.GaussianBlur(mask[i][j], (0, 0), 8)
+# def one_hot_gaussian_blur(index, classes):
+#     '''
+#     index: numpy array b, h, w
+#     classes: int
+#     '''
+#     mask = np.transpose((np.arange(classes) == index[..., None]).astype(float), (0, 3, 1, 2))
+#     b, c, _, _ = mask.shape
+#     for i in range(b):
+#         for j in range(c):
+#             mask[i][j] = cv2.GaussianBlur(mask[i][j], (0, 0), 8)
 
-    return mask
+#     return mask
+
 
 def collate(batch):
-    image = [ b['image'] for b in batch ] # w, h
-    label = [ b['label'] for b in batch ]
-    id = [ b['id'] for b in batch ]
+    image = [b['image'] for b in batch]  # w, h
+    label = [b['label'] for b in batch]
+    id = [b['id'] for b in batch]
     return {'image': image, 'label': label, 'id': id}
 
+
 def collate_test(batch):
-    image = [ b['image'] for b in batch ] # w, h
-    id = [ b['id'] for b in batch ]
+    image = [b['image'] for b in batch]  # w, h
+    id = [b['id'] for b in batch]
     return {'image': image, 'id': id}
 
 
@@ -206,7 +230,8 @@ def create_model_load_weights(n_class, mode=1, evaluation=False, path_g=None, pa
         partial = torch.load(path_g)
         state = model.state_dict()
         # 1. filter out unnecessary keys
-        pretrained_dict = {k: v for k, v in partial.items() if k in state and "local" not in k}
+        pretrained_dict = {
+            k: v for k, v in partial.items() if k in state and "local" not in k}
         # 2. overwrite entries in the existing state dict
         state.update(pretrained_dict)
         # 3. load the new state dict
@@ -216,7 +241,8 @@ def create_model_load_weights(n_class, mode=1, evaluation=False, path_g=None, pa
         partial = torch.load(path_g2l)
         state = model.state_dict()
         # 1. filter out unnecessary keys
-        pretrained_dict = {k: v for k, v in partial.items() if k in state}# and "global" not in k}
+        # and "global" not in k}
+        pretrained_dict = {k: v for k, v in partial.items() if k in state}
         # 2. overwrite entries in the existing state dict
         state.update(pretrained_dict)
         # 3. load the new state dict
@@ -231,7 +257,8 @@ def create_model_load_weights(n_class, mode=1, evaluation=False, path_g=None, pa
         partial = torch.load(path_g)
         state = global_fixed.state_dict()
         # 1. filter out unnecessary keys
-        pretrained_dict = {k: v for k, v in partial.items() if k in state and "local" not in k}
+        pretrained_dict = {
+            k: v for k, v in partial.items() if k in state and "local" not in k}
         # 2. overwrite entries in the existing state dict
         state.update(pretrained_dict)
         # 3. load the new state dict
@@ -242,7 +269,8 @@ def create_model_load_weights(n_class, mode=1, evaluation=False, path_g=None, pa
         partial = torch.load(path_l2g)
         state = model.state_dict()
         # 1. filter out unnecessary keys
-        pretrained_dict = {k: v for k, v in partial.items() if k in state}# and "global" not in k}
+        # and "global" not in k}
+        pretrained_dict = {k: v for k, v in partial.items() if k in state}
         # 2. overwrite entries in the existing state dict
         state.update(pretrained_dict)
         # 3. load the new state dict
@@ -254,7 +282,7 @@ def create_model_load_weights(n_class, mode=1, evaluation=False, path_g=None, pa
     else:
         model.module.resnet_global.eval()
         model.module.fpn_global.eval()
-    
+
     return model, global_fixed
 
 
@@ -262,21 +290,24 @@ def get_optimizer(model, mode=1, learning_rate=2e-5):
     if mode == 1 or mode == 3:
         # train global
         optimizer = torch.optim.Adam([
-                {'params': model.module.resnet_global.parameters(), 'lr': learning_rate},
-                {'params': model.module.resnet_local.parameters(), 'lr': 0},
-                {'params': model.module.fpn_global.parameters(), 'lr': learning_rate},
-                {'params': model.module.fpn_local.parameters(), 'lr': 0},
-                {'params': model.module.ensemble_conv.parameters(), 'lr': learning_rate},
-            ], weight_decay=5e-4)
+            {'params': model.module.resnet_global.parameters(), 'lr': learning_rate},
+            {'params': model.module.resnet_local.parameters(), 'lr': 0},
+            {'params': model.module.fpn_global.parameters(), 'lr': learning_rate},
+            {'params': model.module.fpn_local.parameters(), 'lr': 0},
+            {'params': model.module.ensemble_conv.parameters(),
+             'lr': learning_rate},
+        ], weight_decay=5e-4)
     else:
         # train local
         optimizer = torch.optim.Adam([
-                {'params': model.module.resnet_global.parameters(), 'lr': 0},
-                {'params': model.module.resnet_local.parameters(), 'lr': learning_rate},
-                {'params': model.module.fpn_global.parameters(), 'lr': 0},
-                {'params': model.module.fpn_local.parameters(), 'lr': learning_rate},
-                {'params': model.module.ensemble_conv.parameters(), 'lr': learning_rate},
-            ], weight_decay=5e-4)
+            {'params': model.module.resnet_global.parameters(), 'lr': 0},
+            {'params': model.module.resnet_local.parameters(),
+             'lr': learning_rate},
+            {'params': model.module.fpn_global.parameters(), 'lr': 0},
+            {'params': model.module.fpn_local.parameters(), 'lr': learning_rate},
+            {'params': model.module.ensemble_conv.parameters(),
+             'lr': learning_rate},
+        ], weight_decay=5e-4)
     return optimizer
 
 
