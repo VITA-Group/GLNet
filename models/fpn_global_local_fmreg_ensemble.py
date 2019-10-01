@@ -11,8 +11,7 @@ from pdb import set_trace as bp
 class fpn_module_global(nn.Module):
     def __init__(self, numClass):
         super(fpn_module_global, self).__init__()
-        self._up_kwargs = {'mode': 'bilinear', 'align_corners': True}
-        # self._up_kwargs = {'mode': 'bilinear'}
+        self._up_kwargs = {'mode': 'bilinear'}
         # Top layer
         self.toplayer = nn.Conv2d(2048, 256, kernel_size=1, stride=1, padding=0) # Reduce channels
         # Lateral layers
@@ -135,8 +134,7 @@ class fpn_module_global(nn.Module):
 class fpn_module_local(nn.Module):
     def __init__(self, numClass):
         super(fpn_module_local, self).__init__()
-        self._up_kwargs = {'mode': 'bilinear', 'align_corners': True}
-        # self._up_kwargs = {'mode': 'bilinear'}
+        self._up_kwargs = {'mode': 'bilinear'}
         # Top layer
         fold = 2
         self.toplayer = nn.Conv2d(2048 * fold, 256, kernel_size=1, stride=1, padding=0) # Reduce channels
@@ -225,8 +223,7 @@ class fpn_module_local(nn.Module):
 class fpn(nn.Module):
     def __init__(self, numClass):
         super(fpn, self).__init__()
-        self._up_kwargs = {'mode': 'bilinear', 'align_corners': True}
-        # self._up_kwargs = {'mode': 'bilinear'}
+        self._up_kwargs = {'mode': 'bilinear'}
         # Res net
         self.resnet_global = resnet50(True)
         self.resnet_local = resnet50(True)

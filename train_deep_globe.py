@@ -43,7 +43,6 @@ print("mode:", mode, "evaluation:", evaluation, "test:", test)
 print("preparing datasets and dataloaders......")
 batch_size = args.batch_size
 ids_train = [image_name for image_name in os.listdir(os.path.join(data_path, "train", "Sat")) if is_image_file(image_name)]
-# ids_train = [image_name for image_name in os.listdir(os.path.join(data_path, "train_test", "Sat")) if is_image_file(image_name)]
 ids_val = [image_name for image_name in os.listdir(os.path.join(data_path, "crossvali", "Sat")) if is_image_file(image_name)]
 ids_test = [image_name for image_name in os.listdir(os.path.join(data_path, "offical_crossvali", "Sat")) if is_image_file(image_name)]
 
@@ -64,7 +63,6 @@ sub_batch_size = args.sub_batch_size # batch size for train local patches
 print("creating models......")
 
 path_g = os.path.join(model_path, args.path_g)
-# path_g = os.path.join(model_path, "fpn_global.804_nonorm_3.17.2019.lr2e5" + ".pth")
 path_g2l = os.path.join(model_path, args.path_g2l)
 path_l2g = os.path.join(model_path, args.path_l2g)
 model, global_fixed = create_model_load_weights(n_class, mode, evaluation, path_g=path_g, path_g2l=path_g2l, path_l2g=path_l2g)
@@ -123,8 +121,9 @@ for epoch in range(num_epochs):
             for i_batch, sample_batched in enumerate(tbar):
                 predictions, predictions_global, predictions_local = evaluator.eval_test(sample_batched, model, global_fixed)
                 score_val, score_val_global, score_val_local = evaluator.get_scores()
-                if mode == 1: tbar.set_description('global mIoU: %.3f' % (np.mean(np.nan_to_num(score_val_global["iou"]))))
-                else: tbar.set_description('agg mIoU: %.3f' % (np.mean(np.nan_to_num(score_val["iou"]))))
+                # use [1:] since class0 is not considered in deep_globe metric
+                if mode == 1: tbar.set_description('global mIoU: %.3f' % (np.mean(np.nan_to_num(score_val_global["iou"])[1:])))
+                else: tbar.set_description('agg mIoU: %.3f' % (np.mean(np.nan_to_num(score_val["iou"])[1:])))
                 images = sample_batched['image']
                 if not test:
                     labels = sample_batched['label'] # PIL images
@@ -158,17 +157,12 @@ for epoch in range(num_epochs):
                 evaluator.reset_metrics()
                 if mode == 1:
                     if np.mean(np.nan_to_num(score_val_global["iou"][1:])) > best_pred: best_pred = np.mean(np.nan_to_num(score_val_global["iou"][1:]))
-                    # if np.mean(np.nan_to_num(score_val_global["iou"])) > best_pred: best_pred = np.mean(np.nan_to_num(score_val_global["iou"]))
                 else:
                     if np.mean(np.nan_to_num(score_val["iou"][1:])) > best_pred: best_pred = np.mean(np.nan_to_num(score_val["iou"][1:]))
-                    # if np.mean(np.nan_to_num(score_val["iou"])) > best_pred: best_pred = np.mean(np.nan_to_num(score_val["iou"]))
                 log = ""
                 log = log + 'epoch [{}/{}] IoU: train = {:.4f}, val = {:.4f}'.format(epoch+1, num_epochs, np.mean(np.nan_to_num(score_train["iou"][1:])), np.mean(np.nan_to_num(score_val["iou"][1:]))) + "\n"
                 log = log + 'epoch [{}/{}] Local  -- IoU: train = {:.4f}, val = {:.4f}'.format(epoch+1, num_epochs, np.mean(np.nan_to_num(score_train_local["iou"][1:])), np.mean(np.nan_to_num(score_val_local["iou"][1:]))) + "\n"
                 log = log + 'epoch [{}/{}] Global -- IoU: train = {:.4f}, val = {:.4f}'.format(epoch+1, num_epochs, np.mean(np.nan_to_num(score_train_global["iou"][1:])), np.mean(np.nan_to_num(score_val_global["iou"][1:]))) + "\n"
-                # log = log + 'epoch [{}/{}] IoU: train = {:.4f}, val = {:.4f}'.format(epoch+1, num_epochs, np.mean(np.nan_to_num(score_train["iou"])), np.mean(np.nan_to_num(score_val["iou"]))) + "\n"
-                # log = log + 'epoch [{}/{}] Local  -- IoU: train = {:.4f}, val = {:.4f}'.format(epoch+1, num_epochs, np.mean(np.nan_to_num(score_train_local["iou"])), np.mean(np.nan_to_num(score_val_local["iou"]))) + "\n"
-                # log = log + 'epoch [{}/{}] Global -- IoU: train = {:.4f}, val = {:.4f}'.format(epoch+1, num_epochs, np.mean(np.nan_to_num(score_train_global["iou"])), np.mean(np.nan_to_num(score_val_global["iou"]))) + "\n"
                 log = log + "train: " + str(score_train["iou"]) + "\n"
                 log = log + "val:" + str(score_val["iou"]) + "\n"
                 log = log + "Local train:" + str(score_train_local["iou"]) + "\n"
@@ -183,9 +177,7 @@ for epoch in range(num_epochs):
                 f_log.flush()
                 if mode == 1:
                     writer.add_scalars('IoU', {'train iou': np.mean(np.nan_to_num(score_train_global["iou"][1:])), 'validation iou': np.mean(np.nan_to_num(score_val_global["iou"][1:]))}, epoch)
-                    # writer.add_scalars('IoU', {'train iou': np.mean(np.nan_to_num(score_train_global["iou"])), 'validation iou': np.mean(np.nan_to_num(score_val_global["iou"]))}, epoch)
                 else:
                     writer.add_scalars('IoU', {'train iou': np.mean(np.nan_to_num(score_train["iou"][1:])), 'validation iou': np.mean(np.nan_to_num(score_val["iou"][1:]))}, epoch)
-                    # writer.add_scalars('IoU', {'train iou': np.mean(np.nan_to_num(score_train["iou"])), 'validation iou': np.mean(np.nan_to_num(score_val["iou"]))}, epoch)
 
 if not evaluation: f_log.close()
