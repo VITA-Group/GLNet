@@ -45,9 +45,13 @@ GLNet (red dots) integrates both global and local information in a compact way, 
 </p>
 
 ## Training
-Current this code base works for Python version >= 3.5. Please install the dependencies: `pip install -r requirements.txt`
+Current this code base works for Python version >= 3.5.
+
+Please install the dependencies: `pip install -r requirements.txt`
+
 First, you could register and download the Deep Globe "Land Cover Classification" dataset here:
 https://competitions.codalab.org/competitions/18468
+
 Then please sequentially finish the following steps:
 1. `./train_deep_globe_global.sh`
 2. `./train_deep_globe_global2local.sh`
