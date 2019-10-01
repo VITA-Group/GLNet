@@ -1,11 +1,8 @@
-from .resnet import resnet50#, resnet101
-# from .resnet_dilation import resnet50
+from .resnet import resnet50
 import torch.nn as nn
 import torch.nn.functional as F
 import torch
-# from torch.autograd import Variable
 import numpy as np
-from pdb import set_trace as bp
 
 
 class fpn_module_global(nn.Module):

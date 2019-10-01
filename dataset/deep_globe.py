@@ -1,8 +1,6 @@
 import os
-# from os.path import join
 import torch.utils.data as data
 import numpy as np
-# import matplotlib.pyplot as plt
 from PIL import Image, ImageFile
 import random
 from torchvision.transforms import ToTensor
