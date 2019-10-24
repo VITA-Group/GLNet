@@ -452,4 +452,3 @@
 990619_sat.jpg
 991758_sat.jpg
 995492_sat.jpg
-sat.h
