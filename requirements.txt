@@ -1,7 +1,7 @@
 numpy
-torch>=0.4.1
-torchvision
+torch==0.4.1
+torchvision==0.3.0
 tqdm
 tensorboardX
 Pillow
-opencv-python
+opencv-python==3.4.4
