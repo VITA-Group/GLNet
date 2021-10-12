@@ -4,4 +4,4 @@ torchvision==0.3.0
 tqdm
 tensorboardX
 Pillow
-opencv-python==3.4.4
+opencv-python==3.4.7.28
